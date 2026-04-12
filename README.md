@@ -55,13 +55,46 @@
 
 目标：在**不丢原有音频转写链路**的前提下，为「任意类型视频」增加**画面侧**信息。
 
-| 能力 | 思路 | 硬件参考（你的环境） |
-|------|------|----------------------|
-| 幻灯片 / 大标题 / UI 文字 | OpenCV 抽帧 + 场景/哈希去重 + **PaddleOCR** | RTX 5090 可 GPU 加速 OCR；64G RAM 适合长视频批处理 |
-| 烧录字幕条 | 裁剪固定区域 + OCR（可参考社区 **VideOCR** 思路） | 同上 |
-| 操作演示语义 | 关键帧 + **Qwen2-VL / Qwen3-VL** 等本地 VLM 问答 | 5090 可跑 7B～32B 级量化模型（具体以官方显存说明为准） |
+### 本地 **Qwen3.5-27B** 多模态（已提供脚本）
 
-依赖不强制写入主 `requirements.txt`（避免拖垮纯 ASR 用户）；可选安装见 **`requirements-vision.txt`**。实现将按模块增量提交（CLI / GUI 页签后续接入）。
+> **显存说明**：全精度 **Qwen/Qwen3.5-27B（BF16）** 单卡 32GB 级显存通常不够；默认使用官方 **Qwen/Qwen3.5-27B-GPTQ-Int4**（4-bit，单卡 5090 级可跑）。若你有多卡或更大显存，可在启动前 `set QWEN35_MODEL=Qwen/Qwen3.5-27B` 并自行保证 `transformers serve` / vLLM 能加载。
+
+1. **安装独立环境**（勿装进 `python_embed`，避免与 faster-whisper 冲突）：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+.\install_qwen35_venv.ps1
+```
+
+2. **启动服务**（首次会自动从 Hugging Face 拉取权重，约 20GB+；可设代理或镜像）：
+
+```bat
+SERVE_QWEN35.bat
+```
+
+   - 接口：`http://127.0.0.1:8000/v1`（OpenAI 兼容 `chat/completions`）
+   - 可选：`set HF_HOME=某盘:\hf_cache` 指定缓存目录
+
+3. **联调画面**（另一终端；需 `ffmpeg/` 下有 `ffmpeg.exe` 以便从视频抽帧）：
+
+```bat
+TEST_QWEN35_VISION.bat "docs\screenshots\gui-extract.png"
+```
+
+   或直接：
+
+```bat
+venv_qwen35\Scripts\python.exe qwen35_vision_client.py --image 某图.jpg --prompt "描述画面文字与界面"
+venv_qwen35\Scripts\python.exe qwen35_vision_client.py --video 某视频.mp4 --at 3 --prompt "这一帧里有什么？"
+```
+
+| 能力 | 思路 | 硬件参考 |
+|------|------|----------|
+| 幻灯片 / UI 文字（精确 OCR） | 抽帧去重 + **PaddleOCR**（见 `requirements-vision.txt`） | 5090 + 64G RAM |
+| 操作演示 / 语义概括 | 关键帧 + **Qwen3.5**（上表脚本） | 默认 GPTQ-Int4 单卡 |
+| 烧录字幕条 | 裁条 + OCR | 同上 |
+
+GUI 内一键入口将在后续版本接入；当前以 **服务 + 客户端脚本** 先跑通。
 
 ---
 

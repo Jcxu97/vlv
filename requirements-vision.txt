@@ -17,3 +17,6 @@
 # safetensors
 
 # 说明：以上行默认注释；确定方案后取消注释并锁定版本再提交 lock。
+
+# --- Qwen3.5-27B 本地服务（推荐走脚本，勿与 python_embed 混用）---
+# 见仓库根目录 install_qwen35_venv.ps1、SERVE_QWEN35.bat、qwen35_vision_client.py

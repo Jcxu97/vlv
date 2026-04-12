@@ -8,6 +8,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+venv_qwen35/
+
+# Local Qwen3.5 HF cache (optional; keep off slow disks if you symlink)
+.hf_cache/
 
 # Large or redistributable outside Git (see README)
 python_embed/
