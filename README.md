@@ -76,6 +76,10 @@ SERVE_QWEN35.bat
    - **transformers 5.x**：模型名为 `serve` 的**位置参数**（脚本已写为 `serve "%QWEN35_MODEL%" ...`）
    - **RTX 5090**：`install_qwen35_venv.ps1` 使用 **PyTorch cu128**；勿再用 cu124 轮子
    - 可选：`set HF_HOME=某盘:\hf_cache` 指定缓存目录
+   - **已放入本仓库目录的轻量模型**：`models/Qwen2-VL-2B-Instruct/`（约 4.2GB，完整 safetensors，不入 Git）。启动前指定本地路径即可离线加载，例如：  
+     `set QWEN35_MODEL=%CD%\models\Qwen2-VL-2B-Instruct` 再运行 `SERVE_QWEN35.bat`。  
+     若尚未下载，可在仓库根执行 `.\download_qwen2vl_to_models.ps1`，或：  
+     `venv_qwen35\Scripts\hf.exe download Qwen/Qwen2-VL-2B-Instruct --local-dir models\Qwen2-VL-2B-Instruct`
 
 3. **联调画面**（另一终端；需 `ffmpeg/` 下有 `ffmpeg.exe` 以便从视频抽帧）：
 

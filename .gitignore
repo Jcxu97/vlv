@@ -17,6 +17,8 @@ venv_qwen35/
 python_embed/
 pw-browsers/
 whisper-models/
+# 本地 VLM 权重（如 Qwen2-VL，体积大，不入库）
+models/
 ffmpeg/*.exe
 ffmpeg/*.dll
 
