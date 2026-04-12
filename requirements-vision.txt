@@ -1,0 +1,19 @@
+# 画面 / OCR / VLM 可选依赖（本 Vision 副本规划中使用；勿与主 requirements 混装后抱怨体积）
+# 安装前请确认 CUDA / Python 版本与各官方文档一致（5090 通常 CUDA 12.x）。
+
+# --- OCR（中英界面、幻灯片、硬字幕条）---
+# paddlepaddle-gpu>=3.0.0   # 版本需与 NVIDIA CUDA 对齐，见 https://www.paddlepaddle.org.cn/
+# paddleocr>=2.7
+
+# --- 仅 CPU OCR 试验（较慢）---
+# paddlepaddle>=3.0.0
+# paddleocr>=2.7
+
+# --- 多模态视频 / 图像理解（本地 VLM，按显存选模型）---
+# torch 建议按 https://pytorch.org/ 选择与 CUDA 匹配的 wheel
+# transformers>=4.40.0
+# accelerate>=0.27.0
+# qwen-vl-utils[decord]   # 若使用 Qwen2-VL / Qwen3-VL 官方示例
+# safetensors
+
+# 说明：以上行默认注释；确定方案后取消注释并锁定版本再提交 lock。
