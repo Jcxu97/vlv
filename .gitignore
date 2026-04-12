@@ -22,6 +22,10 @@ models/
 ffmpeg/*.exe
 ffmpeg/*.dll
 
+# Local serve debug logs
+serve_out.log
+serve_err.log
+
 # Archives / OS
 *.zip
 Thumbs.db
