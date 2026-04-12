@@ -189,6 +189,44 @@ API_INFO_BG = "#eef4ff"
 API_INFO_BORDER = "#c9daf8"
 API_SECTION_MUTED = "#5c6570"
 
+# 画面理解页：浅绿系，与「API 与模型」蓝区区分
+VISION_INFO_BG = "#ecfdf5"
+VISION_INFO_BORDER = "#6ee7b7"
+VISION_MUTED = "#047857"
+VISION_CARD_TITLE = "#0f766e"
+VISION_PREF_JSON = ROOT / "local_vision_prefs.json"
+VISION_DEFAULT_PROMPT = (
+    "请用中文简要描述画面中的文字、界面元素和正在展示的主要内容。"
+)
+
+
+def _default_qwen_vl_model() -> str:
+    local_dir = ROOT / "models" / "Qwen2-VL-2B-Instruct"
+    try:
+        if (local_dir / "config.json").is_file():
+            return str(local_dir.resolve())
+    except OSError:
+        pass
+    return "Qwen/Qwen2-VL-2B-Instruct"
+
+
+def _load_vision_prefs() -> dict:
+    try:
+        if VISION_PREF_JSON.is_file():
+            raw = json.loads(VISION_PREF_JSON.read_text(encoding="utf-8"))
+            return raw if isinstance(raw, dict) else {}
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
+    return {}
+
+
+def _save_vision_prefs_file(data: dict) -> None:
+    VISION_PREF_JSON.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 # 常见 B 站域名与短链（分享链接不一定是 www.bilibili.com）
 URL_HINTS = (
     "bilibili.com",
@@ -507,6 +545,7 @@ class App(tk.Tk):
         nav_item("task", "提取与日志")
         nav_item("merged", "合并文稿")
         nav_item("report", "分析报告")
+        nav_item("vision", "画面理解")
         nav_item("api", "API 与模型")
 
         tk.Frame(main, bg=NAV_DIVIDER, width=1).pack(side=tk.LEFT, fill=tk.Y)
@@ -522,15 +561,23 @@ class App(tk.Tk):
         self.frame_task = ttk.Frame(self._content_host, padding=0)
         self.frame_merged = ttk.Frame(self._content_host, padding=0)
         self.frame_report = ttk.Frame(self._content_host, padding=0)
+        self.frame_vision = ttk.Frame(self._content_host, padding=0)
         self.frame_api = ttk.Frame(self._content_host, padding=0)
 
-        for f in (self.frame_task, self.frame_merged, self.frame_report, self.frame_api):
+        for f in (
+            self.frame_task,
+            self.frame_merged,
+            self.frame_report,
+            self.frame_vision,
+            self.frame_api,
+        ):
             f.grid(row=0, column=0, sticky="nsew")
 
         self._views = {
             "task": self.frame_task,
             "merged": self.frame_merged,
             "report": self.frame_report,
+            "vision": self.frame_vision,
             "api": self.frame_api,
         }
 
@@ -696,9 +743,11 @@ class App(tk.Tk):
         except tk.TclError:
             pass
 
+        self._build_vision_page(inner)
         self._build_api_settings_page(inner)
 
         self._busy = False
+        self._vision_busy = False
         self._show_view("task")
         entry.focus_set()
 
@@ -1123,6 +1172,544 @@ class App(tk.Tk):
         api_canvas.bind("<MouseWheel>", _api_wheel, add="+")
         api_canvas.bind("<Button-4>", _api_wheel, add="+")
         api_canvas.bind("<Button-5>", _api_wheel, add="+")
+
+    def _build_vision_page(self, pad: int) -> None:
+        """本地 Qwen2-VL / OpenAI 兼容服务：图或视频单帧 → 文字描述。"""
+        outer = ttk.Frame(self.frame_vision, padding=pad)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        sec_style = getattr(self, "_secondary_button_style", "TButton")
+        btns = tk.Frame(outer, bg=T_PAGE)
+        btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(4, 0))
+        ttk.Button(
+            btns,
+            text="保存本页偏好",
+            command=self._vision_save_prefs,
+            style=sec_style,
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        self._vision_run_btn = ttk.Button(
+            btns,
+            text="开始画面理解",
+            command=self._vision_run_clicked,
+            style=self._run_button_style,
+        )
+        self._vision_run_btn.pack(side=tk.LEFT)
+        ttk.Separator(outer, orient=tk.HORIZONTAL).pack(
+            side=tk.BOTTOM, fill=tk.X, pady=(0, 10)
+        )
+
+        scroll_host = ttk.Frame(outer)
+        scroll_host.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        scroll_host.grid_rowconfigure(0, weight=1)
+        scroll_host.grid_columnconfigure(0, weight=1)
+
+        y_inc = max(18, int(round(self._font_content[1] * 2.4)))
+        vc = tk.Canvas(
+            scroll_host,
+            highlightthickness=0,
+            borderwidth=0,
+            bg=T_PAGE,
+            yscrollincrement=y_inc,
+        )
+        vsb = tk.Scrollbar(
+            scroll_host,
+            orient=tk.VERTICAL,
+            command=vc.yview,
+            width=self._scrollbar_px,
+            borderwidth=0,
+            troughcolor=SCROLL_TROUGH,
+            bg="#c4c4c4",
+            activebackground="#a8a8a8",
+            highlightthickness=0,
+            relief="flat",
+            jump=1,
+        )
+        vc.configure(yscrollcommand=vsb.set)
+        vc.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+
+        inner = tk.Frame(vc, bg=T_PAGE)
+        _vc_win = vc.create_window((0, 0), window=inner, anchor=tk.NW)
+
+        def _vc_on_cfg(event: tk.Event) -> None:
+            w = int(getattr(event, "width", 0) or 0)
+            if w > 1:
+                vc.itemconfigure(_vc_win, width=w)
+
+        def _vc_inner_cfg(_e: object | None = None) -> None:
+            vc.configure(scrollregion=vc.bbox("all"))
+
+        vc.bind("<Configure>", _vc_on_cfg)
+        inner.bind("<Configure>", lambda _e: _vc_inner_cfg())
+
+        def _vc_wheel(event: tk.Event) -> str | None:
+            lines = self._text_wheel_lines
+            d = getattr(event, "delta", 0) or 0
+            if d:
+                if sys.platform == "win32":
+                    steps = int(-d * lines / 120.0)
+                    if steps == 0:
+                        steps = -lines if d > 0 else lines
+                else:
+                    steps = int(-d * lines / 120.0)
+                    if steps == 0:
+                        steps = -lines if d > 0 else lines
+                if steps:
+                    vc.yview_scroll(steps, "units")
+                return "break"
+            n = getattr(event, "num", 0)
+            if n == 4:
+                vc.yview_scroll(-lines, "units")
+                return "break"
+            if n == 5:
+                vc.yview_scroll(lines, "units")
+                return "break"
+            return None
+
+        def _vc_bind_wheel(w: tk.Misc) -> None:
+            w.bind("<MouseWheel>", _vc_wheel, add="+")
+            w.bind("<Button-4>", _vc_wheel, add="+")
+            w.bind("<Button-5>", _vc_wheel, add="+")
+            for c in w.winfo_children():
+                _vc_bind_wheel(c)
+
+        prefs = _load_vision_prefs()
+        hint_wrap = int(680 * self._geom_scale)
+        hint_small_pt = max(8, min(10, int(round(8 * self._font_soft))))
+        hint_small: tuple[str, int] = (self._font_ui[0], hint_small_pt)
+        title_pt = max(12, min(15, int(self._font_ui[1]) + 2))
+
+        head = tk.Frame(inner, bg=T_PAGE)
+        head.pack(fill=tk.X, pady=(0, 2))
+        tk.Label(
+            head,
+            text="画面理解",
+            font=(self._font_ui[0], title_pt, "bold"),
+            bg=T_PAGE,
+            fg=T_TEXT,
+        ).pack(anchor=tk.W)
+        tk.Label(
+            head,
+            text="通过本机 OpenAI 兼容接口调用多模态模型（如 Qwen2-VL），识别截图、幻灯片或视频某一帧中的文字与内容。",
+            font=hint_small,
+            bg=T_PAGE,
+            fg=VISION_MUTED,
+            wraplength=hint_wrap,
+            justify=tk.LEFT,
+        ).pack(anchor=tk.W, pady=(6, 0))
+
+        info_outer = tk.Frame(inner, bg=T_PAGE)
+        info_outer.pack(fill=tk.X, pady=(14, 16))
+        info = tk.Frame(
+            info_outer,
+            bg=VISION_INFO_BG,
+            highlightbackground=VISION_INFO_BORDER,
+            highlightthickness=1,
+        )
+        info.pack(fill=tk.X)
+        tk.Label(
+            info,
+            text=(
+                "· 请先在另一窗口运行 SERVE_QWEN35.bat（或 transformers serve <模型路径>），默认地址 http://127.0.0.1:8000/v1\n"
+                "· 推荐模型目录：models\\Qwen2-VL-2B-Instruct（已下载时可填该路径，无需联网）\n"
+                "· 视频模式会调用项目内 ffmpeg\\ffmpeg.exe 抽取指定时刻的一帧再送模型\n"
+                "· 与「API 与模型」页的云端 Key 无关；此处仅连你本机或局域网上的兼容服务"
+            ),
+            bg=VISION_INFO_BG,
+            fg=T_TEXT,
+            font=hint_small,
+            wraplength=max(320, hint_wrap - 32),
+            justify=tk.LEFT,
+            anchor=tk.NW,
+        ).pack(anchor=tk.W, padx=16, pady=14)
+
+        self._vision_base_url = tk.StringVar(
+            value=str(prefs.get("base_url", "http://127.0.0.1:8000/v1")).strip()
+        )
+        self._vision_model = tk.StringVar(
+            value=str(prefs.get("model", _default_qwen_vl_model())).strip()
+        )
+        self._vision_api_key = tk.StringVar(value=str(prefs.get("api_key", "")).strip())
+        self._vision_path = tk.StringVar(value=str(prefs.get("media_path", "")).strip())
+        self._vision_mode = tk.StringVar(value=str(prefs.get("mode", "image")).strip())
+        self._vision_at_sec = tk.StringVar(
+            value=str(prefs.get("video_at", 1.0))
+        )
+        self._vision_max_tokens = tk.StringVar(
+            value=str(int(prefs.get("max_tokens", 1024) or 1024))
+        )
+
+        def _card(title: str) -> tk.Frame:
+            shell = tk.Frame(inner, bg=T_PAGE)
+            shell.pack(fill=tk.X, pady=(0, 14))
+            card = tk.Frame(
+                shell,
+                bg=T_PANEL,
+                highlightbackground=T_BORDER,
+                highlightthickness=1,
+            )
+            card.pack(fill=tk.X)
+            cin = tk.Frame(card, bg=T_PANEL)
+            cin.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
+            tk.Label(
+                cin,
+                text=title,
+                font=(self._font_ui[0], self._font_ui[1], "bold"),
+                bg=T_PANEL,
+                fg=VISION_CARD_TITLE,
+                anchor=tk.W,
+            ).pack(fill=tk.X)
+            body = tk.Frame(cin, bg=T_PANEL)
+            body.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
+            return body
+
+        svc = _card("本地多模态服务")
+        r1 = tk.Frame(svc, bg=T_PANEL)
+        r1.pack(fill=tk.X)
+        r1.grid_columnconfigure(1, weight=1)
+        tk.Label(r1, text="服务根 URL", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 12), pady=(0, 8)
+        )
+        ttk.Entry(r1, textvariable=self._vision_base_url, width=56).grid(
+            row=0, column=1, sticky="ew", pady=(0, 8)
+        )
+        tk.Label(
+            r1,
+            text="须以 /v1 结尾（与 OpenAI SDK 一致）",
+            bg=T_PANEL,
+            fg=VISION_MUTED,
+            font=hint_small,
+        ).grid(row=1, column=1, sticky=tk.W)
+        r2 = tk.Frame(svc, bg=T_PANEL)
+        r2.pack(fill=tk.X, pady=(12, 0))
+        r2.grid_columnconfigure(1, weight=1)
+        tk.Label(r2, text="模型 ID / 路径", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+            row=0, column=0, sticky=tk.NW, padx=(0, 12), pady=(4, 0)
+        )
+        ttk.Entry(r2, textvariable=self._vision_model).grid(
+            row=0, column=1, sticky="ew", pady=(4, 0)
+        )
+        tk.Label(
+            r2,
+            text="Hub 名或本机绝对路径（含 config.json 的目录）",
+            bg=T_PANEL,
+            fg=VISION_MUTED,
+            font=hint_small,
+        ).grid(row=1, column=1, sticky=tk.W, pady=(4, 0))
+        r3 = tk.Frame(svc, bg=T_PANEL)
+        r3.pack(fill=tk.X, pady=(12, 0))
+        r3.grid_columnconfigure(1, weight=1)
+        tk.Label(r3, text="API Key（可选）", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 12)
+        )
+        ttk.Entry(r3, textvariable=self._vision_api_key, show="*").grid(
+            row=0, column=1, sticky="ew"
+        )
+        tk.Label(
+            r3,
+            text="本地服务可填 EMPTY；留空则按 EMPTY 发送",
+            bg=T_PANEL,
+            fg=VISION_MUTED,
+            font=hint_small,
+        ).grid(row=1, column=1, sticky=tk.W, pady=(4, 0))
+        r4 = tk.Frame(svc, bg=T_PANEL)
+        r4.pack(fill=tk.X, pady=(12, 0))
+        r4.grid_columnconfigure(1, weight=1)
+        tk.Label(r4, text="max_tokens", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 12)
+        )
+        ttk.Entry(r4, textvariable=self._vision_max_tokens, width=12).grid(
+            row=0, column=1, sticky=tk.W
+        )
+
+        inp = _card("输入")
+        mode_row = tk.Frame(inp, bg=T_PANEL)
+        mode_row.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(mode_row, text="来源", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).pack(
+            side=tk.LEFT, padx=(0, 14)
+        )
+        ttk.Radiobutton(
+            mode_row,
+            text="图片文件",
+            value="image",
+            variable=self._vision_mode,
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Radiobutton(
+            mode_row,
+            text="视频（抽单帧）",
+            value="video",
+            variable=self._vision_mode,
+        ).pack(side=tk.LEFT)
+
+        path_row = tk.Frame(inp, bg=T_PANEL)
+        path_row.pack(fill=tk.X)
+        path_row.grid_columnconfigure(1, weight=1)
+        tk.Label(path_row, text="路径", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 12)
+        )
+        ttk.Entry(path_row, textvariable=self._vision_path).grid(
+            row=0, column=1, sticky="ew", padx=(0, 8)
+        )
+
+        def _vision_browse() -> None:
+            mode = self._vision_mode.get()
+            if mode == "image":
+                p = filedialog.askopenfilename(
+                    parent=self,
+                    title="选择图片",
+                    filetypes=[
+                        ("图片", "*.png *.jpg *.jpeg *.webp *.bmp *.gif"),
+                        ("全部", "*.*"),
+                    ],
+                )
+            else:
+                p = filedialog.askopenfilename(
+                    parent=self,
+                    title="选择视频",
+                    filetypes=[
+                        ("视频", "*.mp4 *.mkv *.webm *.mov *.avi *.ts"),
+                        ("全部", "*.*"),
+                    ],
+                )
+            if p:
+                self._vision_path.set(p)
+
+        ttk.Button(path_row, text="浏览…", command=_vision_browse, width=9).grid(
+            row=0, column=2, sticky=tk.E
+        )
+
+        at_row = tk.Frame(inp, bg=T_PANEL)
+        at_row.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(
+            at_row,
+            text="抽帧时刻（秒）",
+            bg=T_PANEL,
+            fg=T_TEXT,
+            font=self._font_ui,
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Entry(at_row, textvariable=self._vision_at_sec, width=10).pack(side=tk.LEFT)
+        tk.Label(
+            at_row,
+            text="仅视频模式使用",
+            bg=T_PANEL,
+            fg=VISION_MUTED,
+            font=hint_small,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+
+        pr = _card("提示词")
+        self._vision_prompt_txt = tk.Text(
+            pr,
+            height=4,
+            wrap=tk.WORD,
+            font=self._font_content,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=T_BORDER,
+            highlightcolor=VISION_CARD_TITLE,
+            bg=T_PANEL,
+            fg=T_TEXT,
+            insertbackground=T_TEXT,
+            selectbackground=T_SELECT,
+        )
+        self._vision_prompt_txt.pack(fill=tk.BOTH, expand=True)
+        _p = str(prefs.get("prompt", VISION_DEFAULT_PROMPT) or VISION_DEFAULT_PROMPT)
+        self._vision_prompt_txt.insert("1.0", _p)
+
+        out_shell = tk.Frame(inner, bg=T_PAGE)
+        out_shell.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+        out_card = tk.Frame(
+            out_shell,
+            bg=T_PANEL,
+            highlightbackground=T_BORDER,
+            highlightthickness=1,
+        )
+        out_card.pack(fill=tk.BOTH, expand=True)
+        out_inner = tk.Frame(out_card, bg=T_PANEL)
+        out_inner.pack(fill=tk.BOTH, expand=True, padx=18, pady=(16, 16))
+        tk.Label(
+            out_inner,
+            text="模型回复",
+            font=(self._font_ui[0], self._font_ui[1], "bold"),
+            bg=T_PANEL,
+            fg=VISION_CARD_TITLE,
+            anchor=tk.W,
+        ).pack(fill=tk.X)
+        out_body = tk.Frame(out_inner, bg=T_PANEL)
+        out_body.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        self._vision_out = self._build_text_view(out_body, mono=False)
+        self._vision_out.configure(height=12)
+
+        _vc_bind_wheel(inner)
+        vc.bind("<MouseWheel>", _vc_wheel, add="+")
+        vc.bind("<Button-4>", _vc_wheel, add="+")
+        vc.bind("<Button-5>", _vc_wheel, add="+")
+
+    def _vision_save_prefs(self) -> None:
+        try:
+            mt = int(self._vision_max_tokens.get().strip() or "1024")
+            mt = max(64, min(mt, 32768))
+        except ValueError:
+            mt = 1024
+        try:
+            atf = float(self._vision_at_sec.get().strip() or "1")
+            if atf < 0:
+                atf = 0.0
+        except ValueError:
+            atf = 1.0
+        data = {
+            "base_url": self._vision_base_url.get().strip(),
+            "model": self._vision_model.get().strip(),
+            "api_key": self._vision_api_key.get().strip(),
+            "media_path": self._vision_path.get().strip(),
+            "mode": self._vision_mode.get().strip(),
+            "video_at": atf,
+            "max_tokens": mt,
+            "prompt": self._vision_prompt_txt.get("1.0", tk.END).strip(),
+        }
+        try:
+            _save_vision_prefs_file(data)
+        except OSError as e:
+            messagebox.showerror("保存失败", str(e))
+            return
+        messagebox.showinfo("已保存", "画面理解偏好已写入 local_vision_prefs.json")
+
+    def _vision_run_clicked(self) -> None:
+        if self._vision_busy:
+            return
+        venv_py = ROOT / "venv_qwen35" / "Scripts" / "python.exe"
+        if not venv_py.is_file():
+            messagebox.showerror(
+                "缺少环境",
+                "未找到 venv_qwen35\\Scripts\\python.exe。\n请先运行 install_qwen35_venv.ps1。",
+            )
+            return
+        script = ROOT / "qwen35_vision_client.py"
+        if not script.is_file():
+            messagebox.showerror("缺少脚本", f"未找到 {script}")
+            return
+
+        path = self._vision_path.get().strip()
+        if not path:
+            messagebox.showwarning("提示", "请填写图片或视频路径，或点击「浏览…」选择。")
+            return
+        p = Path(os.path.expanduser(path.strip('"')))
+        try:
+            ok_file = p.is_file()
+        except OSError:
+            ok_file = False
+        if not ok_file:
+            messagebox.showwarning("提示", f"文件不存在或无法访问：\n{p}")
+            return
+
+        mode = self._vision_mode.get().strip()
+        if mode == "image":
+            suf = p.suffix.lower()
+            if suf not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}:
+                if not messagebox.askyesno(
+                    "确认",
+                    "当前扩展名可能不是常见图片格式，仍要继续吗？",
+                ):
+                    return
+        else:
+            suf = p.suffix.lower()
+            if suf not in {".mp4", ".mkv", ".webm", ".mov", ".avi", ".mpeg", ".mpg", ".ts", ".m2ts"}:
+                if not messagebox.askyesno(
+                    "确认",
+                    "当前扩展名可能不是常见视频格式，仍要继续吗？",
+                ):
+                    return
+            try:
+                atf = float(self._vision_at_sec.get().strip() or "1")
+                if atf < 0:
+                    atf = 0.0
+            except ValueError:
+                messagebox.showwarning("提示", "抽帧时刻请输入数字（秒）。")
+                return
+
+        try:
+            mt = int(self._vision_max_tokens.get().strip() or "1024")
+            mt = max(64, min(mt, 8192))
+        except ValueError:
+            messagebox.showwarning("提示", "max_tokens 请输入整数。")
+            return
+
+        prompt = self._vision_prompt_txt.get("1.0", tk.END).strip()
+        if not prompt:
+            prompt = VISION_DEFAULT_PROMPT
+
+        base = self._vision_base_url.get().strip()
+        model = self._vision_model.get().strip()
+        if not base or not model:
+            messagebox.showwarning("提示", "请填写服务根 URL 与模型路径/ID。")
+            return
+
+        self._vision_busy = True
+        self._vision_run_btn.configure(state=tk.DISABLED)
+        self._vision_out.delete("1.0", tk.END)
+        self._vision_out.insert(tk.END, "正在请求本地多模态服务，请稍候…\n")
+
+        def worker() -> None:
+            err_msg = ""
+            out_txt = ""
+            try:
+                env = os.environ.copy()
+                key = self._vision_api_key.get().strip()
+                env["OPENAI_API_KEY"] = key if key else "EMPTY"
+                cmd = [
+                    str(venv_py),
+                    str(script),
+                    "--quiet",
+                    "--base-url",
+                    base,
+                    "--model",
+                    model,
+                    "--prompt",
+                    prompt,
+                    "--max-tokens",
+                    str(mt),
+                ]
+                if mode == "image":
+                    cmd.extend(["--image", str(p.resolve())])
+                else:
+                    cmd.extend(
+                        ["--video", str(p.resolve()), "--at", str(atf)]
+                    )
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    cwd=str(ROOT),
+                    env=env,
+                    timeout=900,
+                )
+                out_txt = (proc.stdout or "").strip()
+                err_tail = (proc.stderr or "").strip()
+                if proc.returncode != 0:
+                    err_msg = err_tail or f"进程退出码 {proc.returncode}"
+                    if out_txt:
+                        err_msg = f"{err_msg}\n\nstdout:\n{out_txt}"
+                elif not out_txt:
+                    err_msg = err_tail or "模型未返回内容"
+            except subprocess.TimeoutExpired:
+                err_msg = "请求超时（超过 15 分钟）"
+            except OSError as e:
+                err_msg = str(e)
+
+            def done() -> None:
+                self._vision_busy = False
+                self._vision_run_btn.configure(state=tk.NORMAL)
+                self._vision_out.delete("1.0", tk.END)
+                if err_msg:
+                    self._vision_out.insert(tk.END, err_msg)
+                else:
+                    self._vision_out.insert(tk.END, out_txt)
+
+            self.after(0, done)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _sync_asr_symbol(self) -> None:
         """与说明同字号：未选 □、已选 ✔（不用系统小复选框，避免画成 X）。"""

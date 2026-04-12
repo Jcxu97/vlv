@@ -83,11 +83,13 @@ SERVE_QWEN35.bat
 
 3. **联调画面**（另一终端；需 `ffmpeg/` 下有 `ffmpeg.exe` 以便从视频抽帧）：
 
+   **GUI**：打开 `START.bat` → 左侧 **「画面理解」** → 填写服务 URL / 模型路径 → 选图片或视频与提示词 → **开始画面理解**（会调用 `venv_qwen35` 与 `qwen35_vision_client.py`）。偏好可 **保存本页偏好**（`local_vision_prefs.json`）。
+
 ```bat
 TEST_QWEN35_VISION.bat "docs\screenshots\gui-extract.png"
 ```
 
-   或直接：
+   或命令行：
 
 ```bat
 venv_qwen35\Scripts\python.exe qwen35_vision_client.py --image 某图.jpg --prompt "描述画面文字与界面"

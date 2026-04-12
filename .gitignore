@@ -4,6 +4,7 @@ browser_state.json
 cookies.txt
 local_api_keys.py
 local_llm_prefs.json
+local_vision_prefs.json
 __pycache__/
 *.pyc
 .venv/

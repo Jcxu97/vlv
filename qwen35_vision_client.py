@@ -77,6 +77,11 @@ def main() -> None:
         help="User text alongside the image",
     )
     p.add_argument("--max-tokens", type=int, default=2048)
+    p.add_argument(
+        "--quiet",
+        action="store_true",
+        help="仅将模型回复打印到 stdout（供 GUI 子进程解析）",
+    )
     args = p.parse_args()
 
     if bool(args.image) == bool(args.video):
@@ -113,7 +118,8 @@ def main() -> None:
                 ],
             }
         ]
-        print(f"POST {args.base_url}  model={args.model}", flush=True)
+        if not args.quiet:
+            print(f"POST {args.base_url}  model={args.model}", flush=True)
         resp = client.chat.completions.create(
             model=args.model,
             messages=messages,
