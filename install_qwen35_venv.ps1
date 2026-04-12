@@ -2,7 +2,7 @@
 <#
   Separate venv for Qwen3.5 serving — do NOT mix into python_embed (faster-whisper stack).
   Default model: Qwen/Qwen3.5-27B-GPTQ-Int4 (official 4-bit; fits single RTX 5090 class GPU).
-  Full BF16 Qwen/Qwen3.5-27B needs multi-GPU or CPU offload; use transformers serve --force-model if you have that setup.
+  Full BF16 Qwen/Qwen3.5-27B needs multi-GPU or CPU offload; use: transformers serve Qwen/Qwen3.5-27B ...
 
   Usage (PowerShell, repo root):
     Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
@@ -58,8 +58,9 @@ Write-Host "Upgrading pip..."
 & $python -m pip install -U pip wheel
 
 # PyTorch: pick CUDA 12.4 wheels (works on many 50-series setups). For issues, see https://pytorch.org/
-Write-Host "Installing PyTorch (CUDA 12.4 wheels)..."
-& $python -m pip install --upgrade torch torchvision --index-url "https://download.pytorch.org/whl/cu124"
+# RTX 50 系 (sm_120) 需 cu128；其它显卡若失败可改回 cu124
+Write-Host "Installing PyTorch (CUDA 12.8 wheels, Blackwell / RTX 5090)..."
+& $python -m pip install --default-timeout 600 --retries 10 --upgrade torch torchvision --index-url "https://download.pytorch.org/whl/cu128"
 
 Write-Host "Installing transformers[serving] (Qwen3.5 needs recent transformers)..."
 & $python -m pip install "transformers[serving] @ git+https://github.com/huggingface/transformers.git@main"

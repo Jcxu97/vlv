@@ -21,8 +21,8 @@ echo API:   http://127.0.0.1:8000/v1  (OpenAI compatible)
 echo Stop:  Ctrl+C
 echo.
 
-"%~dp0venv_qwen35\Scripts\transformers.exe" serve ^
-  --force-model "%QWEN35_MODEL%" ^
+REM transformers 5.x: model id is a positional arg, not --force-model
+"%~dp0venv_qwen35\Scripts\transformers.exe" serve "%QWEN35_MODEL%" ^
   --port 8000 ^
   --host 0.0.0.0 ^
   --continuous-batching
@@ -30,7 +30,7 @@ echo.
 if errorlevel 1 (
   echo.
   echo If "transformers.exe" failed, try:
-  echo   "%~dp0venv_qwen35\Scripts\python.exe" -m transformers.cli.serve --help
+  echo   "%~dp0venv_qwen35\Scripts\transformers.exe" serve --help
   pause
 )
 exit /b %ERRORLEVEL%

@@ -73,6 +73,8 @@ SERVE_QWEN35.bat
 ```
 
    - 接口：`http://127.0.0.1:8000/v1`（OpenAI 兼容 `chat/completions`）
+   - **transformers 5.x**：模型名为 `serve` 的**位置参数**（脚本已写为 `serve "%QWEN35_MODEL%" ...`）
+   - **RTX 5090**：`install_qwen35_venv.ps1` 使用 **PyTorch cu128**；勿再用 cu124 轮子
    - 可选：`set HF_HOME=某盘:\hf_cache` 指定缓存目录
 
 3. **联调画面**（另一终端；需 `ffmpeg/` 下有 `ffmpeg.exe` 以便从视频抽帧）：

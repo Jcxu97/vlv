@@ -66,7 +66,7 @@ def main() -> None:
     p.add_argument(
         "--model",
         default=os.environ.get("QWEN35_MODEL", "Qwen/Qwen3.5-27B-GPTQ-Int4"),
-        help="Must match server --force-model",
+        help="Must match the model id passed to: transformers serve <model>",
     )
     p.add_argument("--image", type=Path, help="Image file (jpg/png/webp)")
     p.add_argument("--video", type=Path, help="Video file; grabs one frame at --at seconds")
