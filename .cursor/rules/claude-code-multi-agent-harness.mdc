@@ -1,0 +1,14 @@
+---
+description: >-
+  Ensures the claude-code-multi-agent-harness Agent Skill is in effect for this
+  repo — read and follow it for complex work, sourcing, and review pass.
+alwaysApply: true
+---
+
+# 本项目默认启用 `claude-code-multi-agent-harness`
+
+进行**非琐碎**任务（多文件、管线/GUI、文献/实验设计、需检索或强验证）时：
+
+1. **读取并遵循**：`.cursor/skills/claude-code-multi-agent-harness/SKILL.md`（与全局 `~/.cursor/skills/claude-code-multi-agent-harness/SKILL.md` 应保持同步；以**仓库内副本**为项目真源）。
+2. 与用户约定冲突时，以 Skill 内 **「诚实边界」** 与 **可验证证据**（测试/构建输出、DOI、官方文档）为准。
+3. 可选叠加的其他高星 Skills 见该文件 **「可选叠加的高星 Skills」** 表；安装方式以各仓库 README 为准。

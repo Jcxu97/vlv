@@ -4,7 +4,8 @@ description: >-
   Proactively runs a spec-delegate-review loop on non-trivial work without
   waiting for the user to say multi-agent, harness, or Claude Code. Activates
   when the task looks complex or risky (multi-file changes, pipelines/GUI/subprocess,
-  ambiguous asks, refactors, security-sensitive edits, or high coupling). Maximizes
+  ambiguous asks, refactors, security-sensitive edits, or high coupling, or
+  academic tasks such as literature reviews and experimental design). Maximizes
   autonomy: infer intent, use tools and web search when facts are uncertain, think
   through edge cases, and aim to complete the requested slice in one assistant turn
   when feasible. Asks the user rarely—only for blocking decisions—and prefers
@@ -16,6 +17,12 @@ description: >-
 
 # Claude Code 式编排（Cursor 内主动挂载）
 
+## 本版自检（修订时对照）
+
+- **触发面**：工程复杂任务 + **学术类**（文献、综述、实验设计、开题/基金文本）均覆盖；与 `description` 一致。  
+- **与「查资料」一致**：论文类输出每条重要主张尽量 **可追溯 DOI/官方链接**；不编造实验数据（见 **诚实边界** 与 **论文** 节）。  
+- **长度**：主干保持可扫读；细节用 **外部参考** 与 **「可选叠加的高星 Skills」** 指向深挖，避免单文件无限膨胀。
+
 ## 何时自动启用（不必等用户提「多 Agent / harness」）
 
 只要判断任务**非琐碎**，就**主动按本 Skill 执行**，无需用户说出口诀。典型启发：
@@ -23,6 +30,7 @@ description: >-
 - **多文件**或**跨模块**改动；**子进程 / GUI / 打包路径**等易碎区域  
 - 需求**含糊**但可从仓库与惯例**合理推断**（推断后可在回复里用一句话交代假设）  
 - **重构、行为变更、API/配置**；**安全/密钥/隐私**相关  
+- **文献综述、系统评价、论文方法/实验设计、开题与基金本子**（见下 **「论文、文献与实验设计」**）  
 - 外部事实不确定（**版本、文档、breaking change**）→ **先 Web 检索再改**（须遵守下节 **信源优先级**）
 
 **简单单点修改**（改一行文案、明显单文件且零歧义）可轻量处理，但仍可做快速自检。
@@ -65,6 +73,32 @@ description: >-
 
 **自检**：若主要依据既不是 **可验证 DOI 论文** 也不是 **可点开的高星/官方仓库**，应 **继续检索** 或向用户说明证据偏弱（仍尽量少问；能换源则换源）。
 
+## 论文、文献与实验设计（浓缩，与高星 Skill 生态对齐）
+
+以下吸收 **公开 Agent Skills 集合** 中反复出现的**方法论骨架**（如 **K-Dense-AI/scientific-agent-skills**、社区 **systematic review / PRISMA** 类 Skill、**academic-research-skills** 等强调的「先协议、后检索、再综合」），**不**复制任一仓库全文；需要深度模板时请用户自行安装对应 Skill 或打开其 `SKILL.md`。
+
+### 文献与综述（尤其系统综述 / scoping）
+
+1. **先问清范围再检索**：用 **PICO**（人群 / 干预或暴露 / 对照 / 结局）或领域常用的 **PCC**（Population–Concept–Context）把 **研究问题** 写死；含糊时 **内化** 成可检验的一句话假设。  
+2. **可重复检索协议**：预先写明（并在文中记录）**数据库**、**检索式**、**语种/年份/文献类型**、**纳入/排除标准**、**筛选流程**（几人、是否盲法）。  
+3. **系统综述流程图**：若声称系统综述，应对齐 **PRISMA 2020** 清单与流程图逻辑（识别 → 筛选 → 纳入 → 分析）；官方说明见 <https://www.prisma-statement.org/>；陈述论文常用引用：**Page MJ et al., BMJ 2021**（DOI：<https://doi.org/10.1136/bmj.n71>）。  
+4. **综合不是堆砌**：先 **按主题/方法聚类**，再比较结论差异与可能偏倚；重要句后附 **DOI 或正式引用**。  
+5. **质量与偏倚工具（按研究类型选用，一句点名）**：RCT → **Cochrane RoB 2**；观察性研究 → **Newcastle–Ottawa** 等；系统综述质量 → **AMSTAR 2**。具体条目以工具官方说明为准。  
+6. **AI 辅助边界**：可做 **检索、去重思路、表格草稿、语言润色**；**不**伪造纳入文献、**不**编造未读过的结果；用户若需严格 SLR 工具链，可了解社区项目如 **prismAId**（系统综述辅助，见 <https://github.com/open-and-sustainable/prismaid>）。
+
+### 实证与实验设计（CS / ML / 应用实验同理）
+
+1. **先写清**：研究问题、**主指标**（primary endpoint）、**零假设/对立假设**（若适用）、**基线或对照**（baseline / control）。  
+2. **数据与划分**：来源、预处理、**训练/验证/测试** 或 **交叉验证** 规则；**随机种子**与可复现脚本说明。  
+3. **混淆与公平性**：列出主要 **混淆因素**；若做不到随机化，说明 **局限**。  
+4. **分析计划**：先验写清主要分析；**探索性分析** 单独标注，避免与确证性混谈。  
+5. **消融与对比**：声称「某模块有效」时，优先给出 **消融** 或与 **强基线** 对比的设计思路（不必一次跑全，但方法段要自洽）。  
+6. **与文献检索节衔接**：方法或基线引用 **高引 + DOI** 论文；实现参考 **高 star 官方仓库** 并附链接。
+
+### 高星 Skill 从哪装
+
+完整「高星配套」清单见下文 **「可选叠加的高星 Skills（与本 harness 强互补）」**；文献方法论文+代码参考仍推荐：<https://github.com/LitLLM/litllms-for-literature-review-tmlr>（**检索—规划—生成** 与 **归因**）。
+
 ## Claude Code 官方在做什么（对照用，可略读）
 
 1. **Subagents**：独立上下文、工具与提示；主体会 **委派**（`.claude/agents/*.md` 等）。  
@@ -87,6 +121,36 @@ https://code.claude.com/docs/llms.txt
 | 事实核查 | **WebSearch / WebFetch**，遵守 **「查资料：信源优先级」**（DOI/高引论文或高星 GitHub 优先） |
 | Verifier / 评估 | 交付前 **评审 pass**（下节），不单独开帖问用户 |
 
+## 从公开资料吸取的要点（浓缩进本 Skill）
+
+以下综合 **Cursor Agent Skills / agent best practices** 与 **Claude Code（subagents、skills 文档及社区实践）** 的共识，**不照搬** Claude Code 的 JSON hooks，只取可在 Cursor 里落地的思想：
+
+1. **先计划再大改**（对齐 *plan before coding*）：牵涉多模块、需求面宽时，先在回复里写 **极短计划（3～7 条）** 再改文件，减少一上来大范围误改。  
+2. **可验证目标优先**：在评审 pass 中，若项目有 **测试 / linter / compileall / CI**，优先跑 **成本最低** 的一条，用客观信号补充主观自检（对齐 *verifiable goals*）。  
+3. **子任务只回汇总**：通过 Task 或深度探索得到的中间过程，在主回复里 **整合为结论与对主任务的影响**，不把冗长日志原样堆给用户（对齐 subagent **summary 回父会话** 的做法）。  
+4. **探索深度匹配体量**：大仓库首次摸底用 **系统性 Grep/SemanticSearch/Task explore**，避免浅尝辄止漏调用链。  
+5. **独立子任务可并行**：无前后依赖的查证/探索，在工具支持时 **并行**，争取少轮次收尾。  
+6. **渐进式披露**：`SKILL.md` 保持主干；项目若还有专属清单（如本仓库易碎路径表），可另建 `references/*.md`，由 Agent **仅在需要时** 读取（对齐 Agent Skills 的 **optional references** 模式）。  
+7. **显式挂载**：用户可在 Cursor 中用 **`@claude-code-multi-agent-harness`** 或 **`/claude-code-multi-agent-harness`**（以客户端为准）**强制**带上本 Skill，不必依赖自动 relevance。
+
+## 可选叠加的高星 Skills（与本 harness 强互补）
+
+**说明**：下列仓库均为 GitHub 上 **万级～十万级以上 star** 的主流来源（**精确 star 以仓库页为准**）。安装方式见各仓库 README（常见为 `npx skills add owner/repo` 或将子目录拷入 `.cursor/skills/`）。**叠加后**：本 Skill 仍管「何时主动编排 + 信源 + 少问用户」；专项 Skill 管「具体怎么测、怎么写、怎么审」。
+
+| 互补点 | 仓库 | 量级（约，以页面为准） | 建议叠加场景 |
+|--------|------|------------------------|--------------|
+| **交付前证据** | [obra/superpowers](https://github.com/obra/superpowers)（内含 `verification-before-completion` 等） | **十万 +** | 与本 Skill **评审 pass** 同向加强：禁止「应该过了」式断言，要求 **最新一次** 跑完验证命令并 **引用输出/退出码** 再宣称完成 |
+| **调试 / TDD / 计划 / 并行** | 同上（如 `systematic-debugging`、`test-driven-development`、`writing-plans`、`dispatching-parallel-agents`） | 同上 | 复杂 bug、要强验证循环、要写实施计划或多路探索时 |
+| **格式与元能力** | [anthropics/skills](https://github.com/anthropics/skills)（含 `skill-creator`、`mcp-builder`、docx/pdf/pptx/xlsx 等） | **十万 +** | 写新 Skill、接 MCP、出正式文档/幻灯/表格交付物 |
+| **规范与校验** | [agentskills/agentskills](https://github.com/agentskills/agentskills) | **万 +** | 对照 **Agent Skills** 格式、SDK、校验思路 |
+| **官方技能索引** | [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | **万 +** | 按技术栈挑 **Vercel / Cloudflare / Stripe / Sentry** 等官方团队发布的技能 |
+| **科学 / 文献 / 分析** | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | **万 +** | 与本文 **「论文、文献与实验设计」** 配套，做领域检索与写作骨架 |
+| **多领域大批量技能** | [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills) | **万 +** | DevOps、安全、营销等 **按需挑选**，避免一次装全 |
+
+**学术向补充**（偏方法论与流水线，注意各仓库免责声明）：[Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)。
+
+**与本 Skill 的分工**：本文件 = **总编排 + 信源纪律 + 交互策略**；上表 = **可插拔的专业模块**。冲突时以 **可验证证据**（测试/构建输出、DOI、官方文档）为准。
+
 ## 工作流（本 Skill 挂载时默认走这套）
 
 1. **Spec（可极简、主要内化）**  
@@ -108,10 +172,39 @@ https://code.claude.com/docs/llms.txt
 - 为显示「我在思考」而**连环追问**。  
 - 等用户说「用多 Agent」才启用本 Skill。  
 - 把 Claude Code 术语**灌给用户**（内部对齐即可）。  
-- **查资料**时用匿名博客、无 DOI 的「论文」、或 **star 很低且无维护** 的仓库当**主要**依据。
+- **查资料**时用匿名博客、无 DOI 的「论文」、或 **star 很低且无维护** 的仓库当**主要**依据。  
+- **学术场景**下伪造纳入文献、编造未读论文的结果或统计数据。
 
-## 本 Skill 做什么、不声称什么（诚实说明）
+## 本 Skill 想达到的效果（核心思想）
 
-- **是什么**：给 Cursor Agent 的**行为约定**——复杂任务主动走「内化 Spec → 执行/委派 → 评审 → 少问用户」；检索时优先 **DOI 论文 / 高星 GitHub** 等可验证来源。  
-- **不是什么**：不是可执行插件，也**没有**在本仓库里跑过正式 **A/B 对照实验**，因此**不应编造**「提升百分之多少」「p 值」等数据。  
-- **若要做严谨评估**：需自行定义任务集与指标（例如一次通过率、回归缺陷数、引用源质量打分），在固定模型与版本下做对照——那是**你的实验设计**，结果应**如实记录**，而不是写进文档当既有结论。
+- **准确率高**：指 **交付物更可对账**——对齐仓库真实结构、对外主张有 **DOI / 官方文档 / 高星仓库** 等可点击依据，减少「想当然」和过时信息。  
+- **通用**：同一套流程适用于 **多种复杂开发任务**（不限定某一语言或子系统），按复杂度自动「挂载」，不依赖用户背口令。  
+- **避免（劣质）信息环境**：主动压低 **匿名帖、营销文、无法核验的「论文」、低维护 fork** 等噪声源权重，把检索与结论锚在 **可验证环境** 上。
+
+## 示意性对比与反例（非实验数据，仅说明差异方向）
+
+以下**不是**统计实验结果，**没有**样本量与 p 值；只用来表达「做法不同 → 典型风险不同」。
+
+| 维度 | 反例（与本 Skill 相反的习惯） | 本 Skill 鼓励的方向 |
+|------|------------------------------|---------------------|
+| 任务边界 | 需求略含糊就动手，完成定义靠猜 | 内化 Spec（目标/非目标/完成定义），必要时先查仓库再改 |
+| 交付前 | 改完即答，不对照易碎点（子进程/GUI/路径） | **评审 pass**：自问是否满足定义、是否碰易碎区、是否该跑测 |
+| 用户交互 | 连环追问细节、开放问「你觉得呢」 | 默认自决；阻塞时用 **短选择题** |
+| 检索与引用 | 随手引用论坛摘要、无出处的「最佳实践」 | 优先 **DOI 论文 / 高星 GitHub / 官方文档**，并附链接 |
+
+**反例场景（虚构举例）**：某次改动依赖一篇 **无 DOI、作者不明** 的「性能优化十则」，未核对当前依赖版本，结果 API 已变导致构建失败——属于 **信息环境不可靠 + 缺评审** 的典型组合。相对地，同一问题若 **先查发行说明或高星参考实现 + 改完对照完成定义**，更容易一次对齐真实环境。
+
+## 诚实边界
+
+- **是什么**：给 Cursor Agent 的 **Markdown 行为约定**，不是独立可执行插件。  
+- **不声称**：不在本文中提供 **伪造的百分比、对照组人数、p 值** 等；若你需要对外证明效果，请自行设计 **可重复** 的任务集与指标并如实记录。  
+- **若要做严谨评估**：例如一次通过率、回归缺陷数、引用源是否含 DOI/官方链等，在固定模型与 Cursor 版本下做你自己的对照——结论写在实验记录里，而非当作本文已证事实。
+
+## 外部参考（修订 Skill 时可对照）
+
+- Cursor — Agent Skills：<https://cursor.com/docs/context/skills>  
+- Cursor — coding with agents（计划、可验证目标、审 diff）：<https://cursor.com/blog/agent-best-practices>  
+- Anthropic — Claude Code Skills：<https://docs.anthropic.com/en/docs/claude-code/skills>  
+- Agent Skills 开放标准：<https://agentskills.io/>（规范与生态索引见站内 `llms.txt`）  
+- PRISMA 2020：<https://www.prisma-statement.org/>  
+- （本文前文已列）Claude Code Subagents / Hooks 官方链接见 **「Claude Code 官方在做什么」** 一节；**高星配套 Skills 表**见 **「可选叠加的高星 Skills」** 一节。
