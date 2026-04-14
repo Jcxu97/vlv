@@ -1,5 +1,5 @@
 """
-听视纪要 (ListenView)：本地音视频 + B 站，统一「内容提取与分析」页（仅字幕总结 / 多模态深度可选）+ 大模型对话。
+VLV（Video Listen View）：本地音视频 + B 站，统一「内容提取与分析」页（仅字幕总结 / 多模态深度可选）+ 大模型对话。
 浅色工作台界面：参考 Cursor / Codex 类工具的层次与留白，保持亮色主题（非深色）。
 
 高 DPI：启动前启用 Windows Per-Monitor V2 感知；可用环境变量 BILIBILI_GUI_SCALE 覆盖缩放。
@@ -27,9 +27,10 @@ from tkinter import filedialog, messagebox, ttk
 from bilibili_vision.paths import PROJECT_ROOT, subprocess_env
 
 # 产品显示名（窗口标题、侧栏；与 README 一致）
-APP_TITLE = "听视纪要 · ListenView"
-APP_BRAND = "听视纪要"
-APP_TAGLINE = "B站 · 本地 · 转写 · AI"
+# VLV = Video Listen View（Local & Bilibili）
+APP_TITLE = "VLV · Video Listen View"
+APP_BRAND = "VLV"
+APP_TAGLINE = "Video Listen View · Local & Bilibili"
 
 # 子进程 analyze_transcript / vision_deep_pipeline 输出的机器可读进度前缀
 _GUI_PROGRESS_PREFIX = "__GUI_PROGRESS__ "

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从仓库根目录启动「听视纪要 · ListenView」图形界面（双击 START.bat / 启动.bat 与此等价）。"""
+"""从仓库根目录启动 VLV（Video Listen View）图形界面（双击 START.bat / 启动.bat 与此等价）。"""
 from __future__ import annotations
 
 import sys

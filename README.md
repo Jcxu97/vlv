@@ -1,12 +1,12 @@
 <div align="center">
 
-# 听视纪要 · ListenView
+# VLV · Video Listen View
 
-**B 站链接或本地音视频** → 字幕 / 弹幕 / 可选 **Whisper** 转写 → 合并文稿 → **多模型 LLM** 分析与对话 →（可选）**抽帧 + 本地 VLM** 深度画面理解
+**V**ideo **L**isten **V**iew：**本地文件与 B 站链接** → 字幕 / 弹幕 / 可选 **Whisper** 转写 → 合并文稿 → **多模型 LLM** 分析与对话 →（可选）**抽帧 + 本地 VLM** 深度画面理解。
 
-基于 [bilibili-transcript-oneclick](https://github.com/Jcxu97/bilibili-transcript-oneclick) 演进：**源码集中在 `src/bilibili_vision/`**，根目录保留便携启动脚本与数据目录；适合 Windows 便携包（嵌入式 Python + Playwright）。**ListenView** 为本项目在 GitHub 上的仓库名（原 `bilibili-transcript-oneclick-vision` 已重定向）。
+基于 [bilibili-transcript-oneclick](https://github.com/Jcxu97/bilibili-transcript-oneclick) 演进：**源码集中在 `src/bilibili_vision/`**，根目录保留便携启动脚本与数据目录；适合 Windows 便携包（嵌入式 Python + Playwright）。GitHub 仓库名为 **`vlv`**（旧名 `listenview` / `bilibili-transcript-oneclick-vision` 访问时会重定向）。
 
-[![CI](https://github.com/Jcxu97/listenview/actions/workflows/ci.yml/badge.svg)](https://github.com/Jcxu97/listenview/actions/workflows/ci.yml)
+[![CI](https://github.com/Jcxu97/vlv/actions/workflows/ci.yml/badge.svg)](https://github.com/Jcxu97/vlv/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)]()
@@ -38,7 +38,7 @@
 
 | 能力 | 说明 |
 |------|------|
-| **图形工作台** | 听视纪要：提取 → 总结 → 多轮对话；可选「深度内容分析」 |
+| **图形工作台** | **VLV**：提取 → 总结 → 多轮对话；可选「深度内容分析」 |
 | **B 站** | Playwright 登录、会话持久化、`cookies.txt` 供 yt-dlp |
 | **无字幕** | yt-dlp 拉音频 + **faster-whisper**（可选 GPU） |
 | **多模型** | Gemini / OpenAI / Groq / Anthropic / xAI 等；分析侧纯 `urllib`，无重型 LLM SDK |
@@ -58,8 +58,8 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/Jcxu97/listenview.git
-   cd listenview
+   git clone https://github.com/Jcxu97/vlv.git
+   cd vlv
    ```
 2. **一键准备便携目录**（仓库根目录 PowerShell）：
    ```powershell
@@ -201,4 +201,4 @@ powershell -ExecutionPolicy Bypass -File ".\一键推送GitHub.ps1"
 
 ## English
 
-**ListenView** (听视纪要) packages the app under **`src/bilibili_vision`**, with **`run_gui.py`** at the repo root. Large binaries (`python_embed`, browsers, Whisper weights, optional FFmpeg) stay **out of Git**; run **`准备便携环境.ps1`** to bootstrap. Use **`START.bat`** for the GUI. For air-gapped local transcription, copy a full portable tree and run **`START_OFFLINE.bat`**.
+**VLV** (**V**ideo **L**isten **V**iew — local files & Bilibili) packages the app under **`src/bilibili_vision`**, with **`run_gui.py`** at the repo root. Large binaries (`python_embed`, browsers, Whisper weights, optional FFmpeg) stay **out of Git**; run **`准备便携环境.ps1`** to bootstrap. Use **`START.bat`** for the GUI. For air-gapped local transcription, copy a full portable tree and run **`START_OFFLINE.bat`**.
