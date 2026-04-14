@@ -112,7 +112,7 @@
 
 **路径约定**：`bilibili_vision.paths.PROJECT_ROOT` 指向仓库根，用于 `out/`、`models/`、`cookies.txt` 等；与包内源码目录分离。
 
-**Cursor 协作**：Agent Skill **`.cursor/skills/claude-code-multi-agent-harness/SKILL.md`**（**非**运行时代码）随仓库提供副本。**推荐**在个人环境复制到 **`~/.cursor/skills/claude-code-multi-agent-harness/SKILL.md`**，由 Cursor **用户级**自动发现，**对所有项目生效**；不再使用本仓库的 **`alwaysApply` 项目规则** 强制挂载。可选：在 Cursor **Settings → Rules → User Rules** 加一句说明以强化习惯。
+**Cursor 协作**：Agent Skill **`claude-code-multi-agent-harness`**（**非**运行时代码）随仓库提供；说明见 **[`.cursor/skills/claude-code-multi-agent-harness/README.md`](.cursor/skills/claude-code-multi-agent-harness/README.md)**。**推荐**在个人环境复制到 **`~/.cursor/skills/claude-code-multi-agent-harness/`**，由 Cursor **用户级**自动发现，**对所有项目生效**；不再使用本仓库的 **`alwaysApply` 项目规则** 强制挂载。可选：在 Cursor **Settings → Rules → User Rules** 加一句说明以强化习惯。
 
 ---
 
