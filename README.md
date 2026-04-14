@@ -19,18 +19,19 @@
 
 ## 预览
 
-<table>
-<tr>
-<td width="33%" align="center"><b>提取与分析</b></td>
-<td width="33%" align="center"><b>API 与模型</b></td>
-<td width="33%" align="center"><b>分析与对话</b></td>
-</tr>
-<tr>
-<td valign="top"><img src="docs/screenshots/gui-extract.png" alt="提取流程" width="100%"/></td>
-<td valign="top"><img src="docs/screenshots/gui-api-models.png" alt="API 与模型" width="100%"/></td>
-<td valign="top"><img src="docs/screenshots/gui-analysis-chat.png" alt="分析与对话" width="100%"/></td>
-</tr>
-</table>
+以下为界面全宽截图（依次：提取与分析 → API 与模型 → 分析与对话），便于看清细节。
+
+### 提取与分析
+
+![VLV — 提取与分析](docs/screenshots/gui-extract.png)
+
+### API 与模型
+
+![VLV — API 与模型](docs/screenshots/gui-api-models.png)
+
+### 分析与对话
+
+![VLV — 分析与对话](docs/screenshots/gui-analysis-chat.png)
 
 ---
 
