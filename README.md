@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)]()
 
-[**预览**](#预览) · [**功能**](#功能) · [**快速开始**](#快速开始) · [**项目结构**](#项目结构) · [**命令行**](#命令行) · [**Vision**](#vision) · [**相关项目**](#相关项目)
+[**预览**](#预览) · [**功能**](#功能) · [**大模型建议**](#大模型建议) · [**快速开始**](#快速开始) · [**项目结构**](#项目结构) · [**命令行**](#命令行) · [**Vision**](#vision) · [**相关项目**](#相关项目)
 
 </div>
 
@@ -48,6 +48,16 @@
 
 ---
 
+<a id="大模型建议"></a>
+
+## 大模型建议
+
+- **更推荐直接用云端 API**：在 GUI **「API 与模型」** 里填 **Gemini / OpenAI / Groq / Anthropic / xAI** 等平台的 Key 即可，**上手最快、维护成本最低**，不必在本机折腾推理环境与显存。
+- **本地部署大模型（完全自选）**：仓库里的 **Gemma / Qwen、OpenAI 兼容服务**（如 `SERVE_GEMMA4_4BIT.bat`）只是**可选路径**，需要你**自行准备**显卡、CUDA、权重下载与服务稳定性；适合有硬件与排障经验的用户，**普通用户不必强求**。
+- **画面理解（Vision）** 同理：若你的 API 提供商支持多模态，可优先走云端；本地 VLM 同样依赖本机资源与自建服务，按需选用即可。
+
+---
+
 ## 快速开始
 
 ### 环境
@@ -73,6 +83,7 @@
    .\python_embed\python.exe -m pip install -r requirements-gpu.txt
    ```
 4. **启动 GUI**：双击 **`START.bat`** 或 **`启动.bat`**（等价于 `python_embed\python.exe run_gui.py`）。
+5. **分析与对话**：打开 **「API 与模型」**，填入至少一个云端 Key（见上节 **[大模型建议](#大模型建议)**）；即可总结、深度分析与多轮对话，无需先搭本地大模型。
 
 **离线 / 内网**（仅本地文件转写）：拷贝完整便携目录（含 `python_embed/`、`whisper-models/<模型>/`、`ffmpeg/` 下 `ffmpeg.exe` / `ffprobe.exe`），使用 **`START_OFFLINE.bat`**。B 站链接仍需外网。
 
@@ -125,6 +136,8 @@ python -m bilibili_vision.bilibili_pipeline --help
 
 ## Vision / 本地 VLM
 
+**说明**：与「大模型建议」一致——**有云端多模态 API 时优先用云端更省事**；本节描述的是**可选**的本地 OpenAI 兼容服务联调。
+
 GUI 与管线通过 **`local_vlm_openai_client`** 调用 OpenAI 兼容接口。默认与 **`SERVE_GEMMA4_4BIT.bat`**（`http://127.0.0.1:18090/v1`）联调。
 
 1. 配置 **Gemma 4 4-bit** 环境并启动服务（脚本会维护 `venv_gemma4`，**不入库**）。
@@ -138,9 +151,11 @@ OCR、PaddleOCR 等见 **`requirements-vision.txt`**。可选 Qwen3.5 服务：`
 
 ---
 
-## API / 密钥（可选）
+## API / 密钥
 
-在 GUI **「API 与模型」** 填写各平台 Key；或复制 `local_api_keys.example.py` → **`local_api_keys.py`**（勿提交），逻辑见 `llm_analyze.py`。
+**推荐**：直接使用各平台 **官方 API Key**（见 **[大模型建议](#大模型建议)**）。在 GUI **「API 与模型」** 中填写即可。
+
+也可复制 `local_api_keys.example.py` → **`local_api_keys.py`**（勿提交），或配合环境变量；逻辑见 `llm_analyze.py`。
 
 ---
 
@@ -203,3 +218,5 @@ powershell -ExecutionPolicy Bypass -File ".\一键推送GitHub.ps1"
 ## English
 
 **VLV** (**V**ideo **L**isten **V**iew — local files & Bilibili) packages the app under **`src/bilibili_vision`**, with **`run_gui.py`** at the repo root. Large binaries (`python_embed`, browsers, Whisper weights, optional FFmpeg) stay **out of Git**; run **`准备便携环境.ps1`** to bootstrap. Use **`START.bat`** for the GUI. For air-gapped local transcription, copy a full portable tree and run **`START_OFFLINE.bat`**.
+
+**LLM usage:** **Cloud APIs (Gemini, OpenAI, Groq, etc.) are recommended** for the easiest setup—just add keys in **API & models**. **Local LLM / VLM stacks** (Gemma, Qwen, OpenAI-compatible servers) are **optional** and require you to manage GPUs, weights, and services yourself.
