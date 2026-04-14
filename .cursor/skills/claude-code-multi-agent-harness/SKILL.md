@@ -13,16 +13,21 @@ description: >-
   prioritizes citable evidence: peer-reviewed venues with resolvable DOIs and
   strong citation signals when comparable, or authoritative high-star GitHub
   repositories; deprioritizes anonymous blogs and unverifiable posts.
+  Uses concise Mermaid diagrams in replies when they clarify multi-step or
+  branching flows; optional stacked skills handle themed SVG export or non-Mermaid
+  diagram types.
 ---
 
 # Claude Code 式编排（Cursor 内主动挂载）
 
 ## 本版自检（修订时对照）
 
-- **触发面**：工程复杂任务 + **学术类**（文献、综述、实验设计、开题/基金文本）均覆盖；与 `description` 一致。  
+- **触发面**：工程复杂任务 + **学术类**（文献、综述、实验设计、开题/基金文本）均覆盖；与 frontmatter **`description`** 中英文语义一致（含 **流程图** 一句若存在）。  
 - **与「少提问」一致**：学术「范围/PICO」优先 **内化或合理默认**；仅在 **阻塞** 时用短 **选择题** 澄清，与 **「与用户交互」** 节不矛盾。  
 - **与「查资料」一致**：论文类主张尽量 **可追溯 DOI/官方链接**；不编造实验数据（见 **诚实边界** 与 **论文** 节）。  
-- **长度**：主干可扫读；深挖靠 **外部参考** 与 **「可选叠加的高星 Skills」**；复杂逻辑需要可视化时，可叠加 **流程图 / Mermaid 类 Skills**（见该节表末）。
+- **长度**：主干可扫读；深挖靠 **外部参考** 与 **「可选叠加 Skills」**；复杂逻辑需要可视化时，**默认可用 Mermaid**（见 **「从公开资料吸取的要点」** 末条）或叠加表内 **流程图 / 多引擎图表** Skills。  
+- **节标题与表意一致**：**「可选叠加 Skills」** 表内兼有 **万级主源** 与 **千级专项**，与节首 **说明** 段落一致，避免只写「高星」造成误解。  
+- **修订后走一遍默认工作流**：对照 **「工作流（Spec→执行→评审）」** 与 **「反模式」**，确认无自相矛盾。
 
 ## 何时自动启用（不必等用户提「多 Agent / harness」）
 
@@ -96,9 +101,9 @@ description: >-
 5. **消融与对比**：声称「某模块有效」时，优先给出 **消融** 或与 **强基线** 对比的设计思路（不必一次跑全，但方法段要自洽）。  
 6. **与文献检索节衔接**：方法或基线引用 **高引 + DOI** 论文；实现参考 **高 star 官方仓库** 并附链接。
 
-### 高星 Skill 从哪装
+### 可选叠加 Skills 从哪装
 
-完整「高星配套」清单见下文 **「可选叠加的高星 Skills（与本 harness 强互补）」**；文献方法论文+代码参考仍推荐：<https://github.com/LitLLM/litllms-for-literature-review-tmlr>（**检索—规划—生成** 与 **归因**）。
+完整清单见下文 **「可选叠加 Skills（与本 harness 强互补）」**；文献方法论文+代码参考仍推荐：<https://github.com/LitLLM/litllms-for-literature-review-tmlr>（**检索—规划—生成** 与 **归因**）。
 
 ## Claude Code 官方在做什么（对照用，可略读）
 
@@ -132,9 +137,10 @@ https://code.claude.com/docs/llms.txt
 4. **探索深度匹配体量**：大仓库首次摸底用 **系统性 Grep/SemanticSearch/Task explore**，避免浅尝辄止漏调用链。  
 5. **独立子任务可并行**：无前后依赖的查证/探索，在工具支持时 **并行**，争取少轮次收尾。  
 6. **渐进式披露**：`SKILL.md` 保持主干；项目若还有专属清单（如本仓库易碎路径表），可另建 `references/*.md`，由 Agent **仅在需要时** 读取（对齐 Agent Skills 的 **optional references** 模式）。  
-7. **显式挂载**：用户可在 Cursor 中用 **`@claude-code-multi-agent-harness`** 或 **`/claude-code-multi-agent-harness`**（以客户端为准）**强制**带上本 Skill，不必依赖自动 relevance。
+7. **显式挂载**：用户可在 Cursor 中用 **`@claude-code-multi-agent-harness`** 或 **`/claude-code-multi-agent-harness`**（以客户端为准）**强制**带上本 Skill，不必依赖自动 relevance。  
+8. **复杂流程可视化（默认轻量）**：**多分支、多角色、长调用链** 等用 **一小段 Mermaid**（` ```mermaid ` 代码块）往往比纯文字更不易歧义；**不**为此额外追问用户。需要 **导出 SVG、统一主题或非 Mermaid 图种** 时再叠加 **「可选叠加 Skills」** 表内专项。
 
-## 可选叠加的高星 Skills（与本 harness 强互补）
+## 可选叠加 Skills（与本 harness 强互补）
 
 **说明**：下表 **前几类** 多为 GitHub 上 **万级～十万级以上 star** 的主流来源（**精确 star 以仓库页为准**）。**流程图 / 多引擎图表** 类专项 Skills 常为 **千级 star**，但用例直接，故单独列出。安装方式见各仓库 README（常见为 `npx skills add owner/repo` 或将子目录拷入 `.cursor/skills/`）。**叠加后**：本 Skill 仍管「何时主动编排 + 信源 + 少问用户」；专项 Skill 管「具体怎么测、怎么写、怎么审、怎么画」。
 
@@ -210,4 +216,4 @@ https://code.claude.com/docs/llms.txt
 - Anthropic — Claude Code Skills：<https://docs.anthropic.com/en/docs/claude-code/skills>  
 - Agent Skills 开放标准：<https://agentskills.io/>（规范与生态索引见站内 `llms.txt`）  
 - PRISMA 2020：<https://www.prisma-statement.org/>  
-- （本文前文已列）Claude Code Subagents / Hooks 官方链接见 **「Claude Code 官方在做什么」** 一节；**高星配套 Skills 表**见 **「可选叠加的高星 Skills」** 一节。
+- （本文前文已列）Claude Code Subagents / Hooks 官方链接见 **「Claude Code 官方在做什么」** 一节；**可选叠加 Skills 表**见 **「可选叠加 Skills（与本 harness 强互补）」** 一节。
