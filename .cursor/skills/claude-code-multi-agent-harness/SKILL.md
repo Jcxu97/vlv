@@ -22,7 +22,7 @@ description: >-
 - **触发面**：工程复杂任务 + **学术类**（文献、综述、实验设计、开题/基金文本）均覆盖；与 `description` 一致。  
 - **与「少提问」一致**：学术「范围/PICO」优先 **内化或合理默认**；仅在 **阻塞** 时用短 **选择题** 澄清，与 **「与用户交互」** 节不矛盾。  
 - **与「查资料」一致**：论文类主张尽量 **可追溯 DOI/官方链接**；不编造实验数据（见 **诚实边界** 与 **论文** 节）。  
-- **长度**：主干可扫读；深挖靠 **外部参考** 与 **「可选叠加的高星 Skills」**。
+- **长度**：主干可扫读；深挖靠 **外部参考** 与 **「可选叠加的高星 Skills」**；复杂逻辑需要可视化时，可叠加 **流程图 / Mermaid 类 Skills**（见该节表末）。
 
 ## 何时自动启用（不必等用户提「多 Agent / harness」）
 
@@ -136,7 +136,7 @@ https://code.claude.com/docs/llms.txt
 
 ## 可选叠加的高星 Skills（与本 harness 强互补）
 
-**说明**：下列仓库均为 GitHub 上 **万级～十万级以上 star** 的主流来源（**精确 star 以仓库页为准**）。安装方式见各仓库 README（常见为 `npx skills add owner/repo` 或将子目录拷入 `.cursor/skills/`）。**叠加后**：本 Skill 仍管「何时主动编排 + 信源 + 少问用户」；专项 Skill 管「具体怎么测、怎么写、怎么审」。
+**说明**：下表 **前几类** 多为 GitHub 上 **万级～十万级以上 star** 的主流来源（**精确 star 以仓库页为准**）。**流程图 / 多引擎图表** 类专项 Skills 常为 **千级 star**，但用例直接，故单独列出。安装方式见各仓库 README（常见为 `npx skills add owner/repo` 或将子目录拷入 `.cursor/skills/`）。**叠加后**：本 Skill 仍管「何时主动编排 + 信源 + 少问用户」；专项 Skill 管「具体怎么测、怎么写、怎么审、怎么画」。
 
 | 互补点 | 仓库 | 量级（约，以页面为准） | 建议叠加场景 |
 |--------|------|------------------------|--------------|
@@ -147,10 +147,12 @@ https://code.claude.com/docs/llms.txt
 | **官方技能索引** | [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | **万 +** | 按技术栈挑 **Vercel / Cloudflare / Stripe / Sentry** 等官方团队发布的技能 |
 | **科学 / 文献 / 分析** | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | **万 +** | 与本文 **「论文、文献与实验设计」** 配套，做领域检索与写作骨架 |
 | **多领域大批量技能** | [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills) | **万 +** | DevOps、安全、营销等 **按需挑选**，避免一次装全 |
+| **Mermaid 流程图 / 时序图等** | [imxv/Pretty-mermaid-skills](https://github.com/imxv/Pretty-mermaid-skills) | **千级**（以页面为准） | 把 **flowchart / sequence / state** 等 **落成 SVG 或 ASCII**、统一主题；语法与图类型仍以 [mermaid-js/mermaid](https://github.com/mermaid-js/mermaid)（**十万 +**，以页面为准）为准 |
+| **UML / 云架构 / BPMN / 数据图等** | [markdown-viewer/skills](https://github.com/markdown-viewer/skills) | **千级**（以页面为准） | 多渲染引擎（含 PlantUML 等），按 README **按场景选 skill**（如流程/活动图、云拓扑、BPMN）；上一行偏 **Mermaid**，本行偏 **更广图种与模板** |
 
 **学术向补充**（偏方法论与流水线，注意各仓库免责声明）：[Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)。
 
-**与本 Skill 的分工**：本文件 = **总编排 + 信源纪律 + 交互策略**；上表 = **可插拔的专业模块**。冲突时以 **可验证证据**（测试/构建输出、DOI、官方文档）为准。
+**与本 Skill 的分工**：本文件 = **总编排 + 信源纪律 + 交互策略**；上表 = **可插拔的专业模块**（含 **流程图/图表**）。冲突时以 **可验证证据**（测试/构建输出、DOI、官方文档、可渲染的图语法）为准。
 
 ## 工作流（本 Skill 挂载时默认走这套）
 
