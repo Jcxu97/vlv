@@ -45,7 +45,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host ">>> Step 2/3: New repository name" -ForegroundColor Cyan
 Write-Host "    Press Enter for default. Do NOT type y/n here (that was only for the previous question)." -ForegroundColor DarkGray
-$defaultName = "bilibili-transcript-oneclick"
+$defaultName = "bilibili-transcript-oneclick-vision"
 $repoName = Read-Host "Repo name [$defaultName]"
 if ([string]::IsNullOrWhiteSpace($repoName)) {
     $repoName = $defaultName

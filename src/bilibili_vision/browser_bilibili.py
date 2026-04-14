@@ -10,13 +10,14 @@ import re
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from bilibili_vision.paths import PROJECT_ROOT
+
 # 便携版：浏览器缓存放在项目目录，随文件夹拷贝（需准备脚本设置 PLAYWRIGHT_BROWSERS_PATH 并 install）
-_pw_br = ROOT / "pw-browsers"
+_pw_br = PROJECT_ROOT / "pw-browsers"
 if _pw_br.is_dir():
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(_pw_br.resolve()))
-STATE_PATH = ROOT / "browser_state.json"
-COOKIES_PATH = ROOT / "cookies.txt"
+STATE_PATH = PROJECT_ROOT / "browser_state.json"
+COOKIES_PATH = PROJECT_ROOT / "cookies.txt"
 
 BILI_NAV_API = "https://api.bilibili.com/x/web-interface/nav"
 

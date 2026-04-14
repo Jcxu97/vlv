@@ -14,13 +14,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Python syntax check (project scripts)
+      - name: Python syntax check (src/bilibili_vision)
+        env:
+          PYTHONPATH: src
         run: |
-          python -m py_compile \
-            gui.py \
-            llm_analyze.py \
-            transcribe_local.py \
-            analyze_transcript.py \
-            download_whisper_models.py \
-            extract_bilibili_text.py \
-            bilibili_pipeline.py
+          python -m compileall -q src/bilibili_vision

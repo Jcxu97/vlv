@@ -1,12 +1,12 @@
 @echo off
 cd /d "%~dp0"
 if exist "%~dp0python_embed\python.exe" (
-  "%~dp0python_embed\python.exe" -u "%~dp0gui.py"
+  "%~dp0python_embed\python.exe" -u "%~dp0run_gui.py"
   if errorlevel 1 pause
   exit /b 0
 )
 if exist "%~dp0venv\Scripts\python.exe" (
-  "%~dp0venv\Scripts\python.exe" -u "%~dp0gui.py"
+  "%~dp0venv\Scripts\python.exe" -u "%~dp0run_gui.py"
   if errorlevel 1 pause
   exit /b 0
 )

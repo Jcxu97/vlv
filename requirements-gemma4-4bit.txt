@@ -1,0 +1,19 @@
+# Gemma 4 + bitsandbytes 4-bit 本地服务（serve_gemma4_4bit.py）
+#
+# 请先单独安装带 CUDA 的 PyTorch + torchvision（版本须一致、与显卡驱动匹配），例如：
+#   venv_gemma4\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# 再执行：
+#   venv_gemma4\Scripts\pip install -r requirements-gemma4-4bit.txt
+#
+# Gemma4VideoProcessor（from_pretrained 拉取官方 processor 时）需要 torchvision；勿单独 pip 装 CPU 轮以免与 torch 冲突。
+#
+transformers>=4.51.0
+# Gemma4Processor / 多模态图像预处理（AutoProcessor）
+Pillow>=10.0.0
+accelerate>=0.34.0
+bitsandbytes>=0.44.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+# 多模态管线 VLM：local_vlm_openai_client.py 默认用标准库 urllib，不依赖本包。
+# 仅当设置 LOCAL_VLM_USE_OPENAI_SDK=1 时才需要 openai（其 jiter 扩展在 Windows 智能应用控制下可能被拦）。
+openai>=1.0.0

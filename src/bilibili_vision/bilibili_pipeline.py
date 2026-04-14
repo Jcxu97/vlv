@@ -10,8 +10,14 @@
   python bilibili_pipeline.py extract --asr-if-no-subs "https://..."
       无 SRT/VTT 时下载音频并转写。
 
+  python bilibili_pipeline.py extract --no-download-video "https://..."
+      仅字幕/弹幕，不下载整片视频。
+
   python bilibili_pipeline.py login
       仅刷新 browser_state.json（可选）。
+
+extract 默认每次新建 out/日期/时间戳_标题_… 会话目录。若须写入已有目录：先设环境变量
+BILIBILI_VISION_OUT，再加 --reuse-env-out。
 
 登录检测：轮询 B 站 nav 接口，无需在终端按 Enter。
 """
@@ -23,21 +29,26 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+from bilibili_vision.paths import PROJECT_ROOT, subprocess_env
 
-from browser_bilibili import (  # noqa: E402
+from .browser_bilibili import (
     COOKIES_PATH,
     STATE_PATH,
     ensure_cookies_from_state,
     save_login_state,
 )
-from transcribe_local import default_whisper_model_choice  # noqa: E402
+from .output_session import ENV_OUT, prepare_output_directory
+from .transcribe_local import default_whisper_model_choice
 
 
 def run(cmd: list[str]) -> None:
     print("运行:", " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+    subprocess.run(
+        cmd,
+        check=True,
+        cwd=str(PROJECT_ROOT),
+        env=subprocess_env(),
+    )
 
 
 def cmd_login(args: argparse.Namespace) -> None:
@@ -60,7 +71,7 @@ def _try_resolved_file(raw: str) -> Path | None:
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
-    from transcribe_local import is_supported_local_media
+    from .transcribe_local import is_supported_local_media
 
     src_raw = _normalize_source(args.source)
     local_path = _try_resolved_file(args.source)
@@ -81,6 +92,8 @@ def cmd_extract(args: argparse.Namespace) -> None:
         extras.append("--asr-if-no-subs")
     if getattr(args, "asr_force", False):
         extras.append("--asr-force")
+    if getattr(args, "no_download_video", False):
+        extras.append("--no-download-video")
     need_whisper = is_local or getattr(args, "asr_if_no_subs", False) or getattr(
         args, "asr_force", False
     )
@@ -99,17 +112,39 @@ def cmd_extract(args: argparse.Namespace) -> None:
     ff_loc = getattr(args, "ffmpeg_location", None)
     if ff_loc:
         extras.extend(["--ffmpeg-location", ff_loc])
+    # 默认每次 extract 新建 out/日期/时间戳_… 会话目录。
+    # 若见 BILIBILI_VISION_OUT 就复用，会与「GUI 记住上次目录（仅用于打开文件）」冲突，导致新任务写进旧文件夹。
+    existing = os.environ.get(ENV_OUT, "").strip()
+    reuse = bool(getattr(args, "reuse_env_out", False))
+    if reuse and existing:
+        session = Path(existing).expanduser().resolve()
+        if not session.is_dir():
+            session = prepare_output_directory(
+                source=str(local_path) if is_local else src_raw,
+                is_local=is_local,
+                local_path=local_path,
+                no_playlist=bool(args.no_playlist),
+            )
+    else:
+        session = prepare_output_directory(
+            source=str(local_path) if is_local else src_raw,
+            is_local=is_local,
+            local_path=local_path,
+            no_playlist=bool(args.no_playlist),
+        )
+    extras.extend(["--out-dir", str(session)])
     argv_source = str(local_path) if is_local else src_raw
     cmd = [
         sys.executable,
-        str(ROOT / "extract_bilibili_text.py"),
+        "-m",
+        "bilibili_vision.extract_bilibili_text",
         "--no-analyze",
         *extras,
         argv_source,
     ]
     run(cmd)
     if not getattr(args, "no_analyze", False):
-        run([sys.executable, str(ROOT / "analyze_transcript.py")])
+        run([sys.executable, "-m", "bilibili_vision.analyze_transcript"])
 
 
 def main() -> None:
@@ -184,6 +219,16 @@ def main() -> None:
         metavar="DIR",
         default=None,
         help="本地 faster-whisper 模型目录（可选；也可设 WHISPER_MODEL_PATH）",
+    )
+    p_ex.add_argument(
+        "--no-download-video",
+        action="store_true",
+        help="B 站链接仅拉字幕/弹幕，不下载整片视频（默认会下到 out/ 供多模态）",
+    )
+    p_ex.add_argument(
+        "--reuse-env-out",
+        action="store_true",
+        help="沿用环境变量 BILIBILI_VISION_OUT 指向的已有目录；默认每次均新建会话子目录",
     )
     p_ex.set_defaults(func=cmd_extract)
 

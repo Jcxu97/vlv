@@ -10,6 +10,11 @@ __pycache__/
 .venv/
 venv/
 venv_qwen35/
+venv_gemma4/
+
+# Local app data / debug logs
+local_chat_data/
+_serve_*.log
 
 # Local Qwen3.5 HF cache (optional; keep off slow disks if you symlink)
 .hf_cache/

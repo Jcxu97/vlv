@@ -2,17 +2,15 @@
 Pre-download faster-whisper CTranslate2 models into whisper-models/<name>/ for portable / offline use.
 Uses the same Hub IDs as faster_whisper.utils.download_model.
 
-  python_embed\\python.exe download_whisper_models.py
-  python_embed\\python.exe download_whisper_models.py large-v3 small
+  set PYTHONPATH=src
+  python_embed\\python.exe -m bilibili_vision.download_whisper_models large-v3 small
 """
 from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+from bilibili_vision.paths import PROJECT_ROOT
 
 
 def main() -> None:
@@ -28,7 +26,7 @@ def main() -> None:
     args = parser.parse_args()
     from faster_whisper.utils import download_model
 
-    base = ROOT / "whisper-models"
+    base = PROJECT_ROOT / "whisper-models"
     base.mkdir(parents=True, exist_ok=True)
     for name in args.models:
         dest = base / name

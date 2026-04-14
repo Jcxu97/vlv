@@ -1,6 +1,7 @@
 """
-一键：B 站链接 → 弹幕/字幕；或本机音视频路径 → 直接本地转写。
+一键：B 站链接 → 弹幕/字幕（默认同批下载整片视频到按日期/标题分的任务目录，供多模态抽帧）；或本机音视频路径 → 直接本地转写。
 - 链接：未登录常只有弹幕 XML；有 cookies.txt 可尝试官方/AI 字幕。
+- 链接默认下载视频（需 ffmpeg 合并轨）；仅想拉字幕时用 --no-download-video。
 - 本地文件：跳过 B 站下载，用 ffmpeg（视频先抽音轨）+ faster-whisper 生成 SRT。
 - 链接无 SRT/VTT 时可用 --asr-if-no-subs 下音频并转写。
 """
@@ -13,19 +14,45 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-# Embeddable python311._pth may omit the script directory from sys.path; local modules live next to this file.
-sys.path.insert(0, str(ROOT))
+from bilibili_vision.paths import PROJECT_ROOT, subprocess_env
 
-from transcribe_local import default_whisper_model_choice
+from .output_session import ENV_OUT, build_session_path
+from .transcribe_local import default_whisper_model_choice
 
 try:
-    from browser_bilibili import parse_srt_to_lines
+    from .browser_bilibili import parse_srt_to_lines
 except ImportError:
     parse_srt_to_lines = None  # type: ignore[misc,assignment]
 
-OUT = ROOT / "out"
-COOKIES = ROOT / "cookies.txt"
+OUT = PROJECT_ROOT / "out"
+COOKIES = PROJECT_ROOT / "cookies.txt"
+
+
+def _resolve_out_dir(
+    args: argparse.Namespace, src_path: Path | None, norm: str
+) -> Path:
+    od = getattr(args, "out_dir", None)
+    if od is not None:
+        p = Path(od).expanduser().resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        os.environ[ENV_OUT] = str(p)
+        return p
+    raw = os.environ.get(ENV_OUT, "").strip()
+    if raw:
+        p = Path(raw).expanduser().resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    is_local = src_path is not None
+    cookies = COOKIES if COOKIES.is_file() else None
+    p = build_session_path(
+        source_for_name=norm,
+        is_local=is_local,
+        local_path=src_path,
+        no_playlist=bool(getattr(args, "no_playlist", False)),
+        cookies=cookies,
+    )
+    os.environ[ENV_OUT] = str(p)
+    return p
 
 
 def _clear_previous_media_files() -> None:
@@ -49,9 +76,29 @@ def _clear_previous_media_files() -> None:
             pass
 
 
-def run_ytdlp(url: str, no_playlist: bool, cookies: Path | None) -> None:
+def _clear_out_video_files() -> None:
+    """新一轮 B 站下载前清空 out 内旧视频，避免多模态误用上一支片。"""
+    OUT.mkdir(parents=True, exist_ok=True)
+    for ext in (".mp4", ".mkv", ".webm", ".mov", ".avi", ".mpeg", ".mpg", ".ts", ".m2ts"):
+        for f in OUT.glob(f"*{ext}"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def run_ytdlp(
+    url: str,
+    no_playlist: bool,
+    cookies: Path | None,
+    *,
+    download_video: bool = True,
+    ffmpeg_bin_dir: str | None = None,
+) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     _clear_previous_media_files()
+    if download_video:
+        _clear_out_video_files()
     cmd = [
         sys.executable,
         "-m",
@@ -62,14 +109,30 @@ def run_ytdlp(url: str, no_playlist: bool, cookies: Path | None) -> None:
         "all,-live_chat",
         "--sub-format",
         "srt/vtt/ass/xml/best",
-        "--skip-download",
-        "-o",
-        str(OUT / "%(id)s_p%(playlist_index)s.%(ext)s"),
     ]
+    if download_video:
+        cmd.extend(
+            [
+                "-f",
+                "bv*+ba/bestvideo+bestaudio/best/b",
+                "--merge-output-format",
+                "mp4",
+            ]
+        )
+    else:
+        cmd.append("--skip-download")
+    cmd.extend(
+        [
+            "-o",
+            str(OUT / "%(id)s_p%(playlist_index)s.%(ext)s"),
+        ]
+    )
     if no_playlist:
         cmd.append("--no-playlist")
     if cookies and cookies.is_file():
         cmd.extend(["--cookies", str(cookies)])
+    if download_video and ffmpeg_bin_dir:
+        cmd.extend(["--ffmpeg-location", ffmpeg_bin_dir])
     cmd.append(url)
     print("运行:", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
@@ -234,16 +297,33 @@ def main() -> None:
         default=None,
         help="ffmpeg 所在目录，或 ffmpeg 可执行文件路径（默认：PATH，其次 static-ffmpeg）",
     )
+    ap.add_argument(
+        "--no-download-video",
+        action="store_true",
+        help="仅下载字幕/弹幕，不下载整片视频（省空间与流量；多模态需自备本地视频或 out 内已有媒体）",
+    )
+    ap.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="本次输出目录（默认按日期/标题自动创建；也可由管线设置环境变量 BILIBILI_VISION_OUT）",
+    )
     args = ap.parse_args()
 
     src_path = _try_local_media_path(args.source)
+    norm = str(src_path) if src_path else _normalize_source(args.source)
+    global OUT
+    OUT = _resolve_out_dir(args, src_path, norm)
+    print(f"__VISION_OUTPUT_DIR__ {OUT.resolve()}", flush=True)
+
     model_path_opt = (
         (args.whisper_model_path or os.environ.get("WHISPER_MODEL_PATH") or "").strip() or None
     )
 
     if src_path:
         try:
-            from transcribe_local import (
+            from .transcribe_local import (
                 SUPPORTED_LOCAL_MEDIA_SUFFIXES,
                 is_supported_local_media,
                 run_asr_for_local_path,
@@ -258,7 +338,6 @@ def main() -> None:
                 file=sys.stderr,
             )
             raise SystemExit(1)
-        OUT.mkdir(parents=True, exist_ok=True)
         _clear_previous_media_files()
         print("本地文件模式：跳过 B 站下载，直接转写。", flush=True)
         try:
@@ -293,11 +372,28 @@ def main() -> None:
         cookies = COOKIES if COOKIES.is_file() else None
         if cookies:
             print("检测到 cookies.txt，将尝试抓取需登录的字幕。")
-        run_ytdlp(line, args.no_playlist, cookies)
+        dl_vid = not getattr(args, "no_download_video", False)
+        ff_for_ytdlp: str | None = None
+        if dl_vid:
+            print("将同时下载整片视频到 out/（供多模态抽帧；需 ffmpeg 合并音视频轨）。", flush=True)
+            try:
+                from .transcribe_local import resolve_ffmpeg_bin_dir
+
+                ff_for_ytdlp = resolve_ffmpeg_bin_dir(args.ffmpeg_location)
+            except FileNotFoundError as e:
+                print(str(e), file=sys.stderr)
+                raise SystemExit(1) from e
+        run_ytdlp(
+            line,
+            args.no_playlist,
+            cookies,
+            download_video=dl_vid,
+            ffmpeg_bin_dir=ff_for_ytdlp,
+        )
 
         if _need_asr(args, OUT):
             try:
-                from transcribe_local import run_asr_for_url
+                from .transcribe_local import run_asr_for_url
             except ImportError as e:
                 print(
                     "错误：已请求本地转写但无法加载 transcribe_local。\n"
@@ -331,7 +427,12 @@ def main() -> None:
     _, path = merge_outputs()
     print(f"完成：{path}")
     if not args.no_analyze:
-        subprocess.run([sys.executable, str(ROOT / "analyze_transcript.py")], check=False)
+        subprocess.run(
+            [sys.executable, "-m", "bilibili_vision.analyze_transcript"],
+            check=False,
+            cwd=str(PROJECT_ROOT),
+            env=subprocess_env(),
+        )
 
 
 if __name__ == "__main__":

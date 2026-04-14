@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parent
+from bilibili_vision.paths import PROJECT_ROOT as _PROJECT_ROOT
 
 # 与便携目录 whisper-models/<id> 一致；GUI 与预下载脚本共用此列表。
 WHISPER_MODEL_CHOICES: tuple[str, ...] = ("large-v3", "small")

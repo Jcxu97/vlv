@@ -1,4 +1,5 @@
 @echo off
+REM Optional: Qwen3.5 self-hosted stack only. Default project VLM uses Gemma + local_vlm_openai_client.py (see TEST_GEMMA4_VISION.bat).
 setlocal
 cd /d "%~dp0"
 
@@ -23,11 +24,12 @@ set "INPUT=%~1"
 echo Input: %INPUT%
 echo.
 
+set "PYTHONPATH=%~dp0src"
 echo %INPUT% | findstr /i "\.mp4 \.mkv \.webm \.mov \.avi" >nul
 if %errorlevel%==0 (
-  "%~dp0venv_qwen35\Scripts\python.exe" "%~dp0qwen35_vision_client.py" --video "%INPUT%" --at 1 --prompt "简要描述这一帧画面中的文字和界面。"
+  "%~dp0venv_qwen35\Scripts\python.exe" -m bilibili_vision.local_vlm_openai_client --base-url "%OPENAI_BASE_URL%" --model "%QWEN35_MODEL%" --video "%INPUT%" --at 1 --prompt "简要描述这一帧画面中的文字和界面。"
 ) else (
-  "%~dp0venv_qwen35\Scripts\python.exe" "%~dp0qwen35_vision_client.py" --image "%INPUT%" --prompt "简要描述画面中的文字和界面元素。"
+  "%~dp0venv_qwen35\Scripts\python.exe" -m bilibili_vision.local_vlm_openai_client --base-url "%OPENAI_BASE_URL%" --model "%QWEN35_MODEL%" --image "%INPUT%" --prompt "简要描述画面中的文字和界面元素。"
 )
 echo.
 pause
