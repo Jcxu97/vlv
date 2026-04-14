@@ -20,8 +20,18 @@ description: >-
 
 # Claude Code 式编排（Cursor 内主动挂载）
 
+## 安装与作用域（推荐全局默认）
+
+Cursor 会从 **`~/.cursor/skills/`**（Windows：`%USERPROFILE%\.cursor\skills\`）**用户级**目录自动发现 Skills，**作用于你打开的所有仓库**（见 [Cursor Agent Skills 文档](https://cursor.com/docs/context/skills)）。**推荐**把本 Skill 放在：
+
+`~/.cursor/skills/claude-code-multi-agent-harness/SKILL.md`
+
+**本仓库内** **`.cursor/skills/claude-code-multi-agent-harness/`** 为**随仓库分发的可选副本**（便于克隆者开箱）；若你已在全局安装同名 Skill，通常**只保留一处**即可，避免重复。  
+**不再**使用仓库级 **`alwaysApply` 规则** 强制挂载——默认启用交给**用户级 Skills 发现**（必要时可在 Cursor **Settings → Rules → User Rules** 用简短文字重申「遵循全局 harness Skill」）。
+
 ## 本版自检（修订时对照）
 
+- **作用域**：默认通过 **`~/.cursor/skills/`（用户级）** 全项目发现；**不**依赖本仓库 **`alwaysApply` 项目规则**（见 **「安装与作用域」**）。  
 - **触发面**：工程复杂任务 + **学术类**（文献、综述、实验设计、开题/基金文本）均覆盖；与 frontmatter **`description`** 中英文语义一致（含 **流程图** 一句若存在）。  
 - **与「少提问」一致**：学术「范围/PICO」优先 **内化或合理默认**；仅在 **阻塞** 时用短 **选择题** 澄清，与 **「与用户交互」** 节不矛盾。  
 - **与「查资料」一致**：论文类主张尽量 **可追溯 DOI/官方链接**；不编造实验数据（见 **诚实边界** 与 **论文** 节）。  
