@@ -15,7 +15,8 @@ from pathlib import Path
 from bilibili_vision.paths import PROJECT_ROOT
 
 ENV_OUT = "BILIBILI_VISION_OUT"
-COOKIES = PROJECT_ROOT / "cookies.txt"
+_CRED_DIR = PROJECT_ROOT / ".credentials"
+COOKIES = _CRED_DIR / "cookies.txt"
 
 
 def sanitize_component(name: str, max_len: int = 72) -> str:
@@ -55,7 +56,7 @@ def fetch_ytdlp_title(
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120,
+            timeout=15,
             cwd=str(PROJECT_ROOT),
         )
     except (subprocess.TimeoutExpired, OSError):
@@ -99,11 +100,14 @@ def build_session_path(
 
     base = PROJECT_ROOT / "out" / day / name
     cand = base
-    n = 0
-    while cand.exists():
-        n += 1
-        cand = base.parent / f"{base.name}_{n}"
-    cand.mkdir(parents=True, exist_ok=True)
+    for n in range(100):
+        try:
+            cand.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            cand = base.parent / f"{base.name}_{n + 1}"
+    else:
+        cand.mkdir(parents=True, exist_ok=True)
     print(f"[输出目录] {cand}", flush=True)
     return cand.resolve()
 

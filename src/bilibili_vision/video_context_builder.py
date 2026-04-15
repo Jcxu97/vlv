@@ -113,17 +113,18 @@ def format_vlm_timeline_line(t_sec: float, sentence: str) -> str:
 def build_time_segments(
     duration_sec: float, segment_sec: float
 ) -> list[tuple[float, float]]:
-    """半开区间 [t0, t1] 闭合为包含端点；这里用闭区间 [t0, t1] 与字幕时间对齐。"""
-    dur = max(1.0, float(duration_sec))
-    step = max(60.0, float(segment_sec))
+    """半开区间 [t0, t1] 闭合为包含端点；这里用闭区间 [t0, t1] 与字幕时间对齐。
+
+    Uses integer millisecond arithmetic internally to avoid floating-point drift.
+    """
+    dur_ms = max(1000, int(round(float(duration_sec) * 1000)))
+    step_ms = max(60_000, int(round(float(segment_sec) * 1000)))
     segs: list[tuple[float, float]] = []
-    t = 0.0
-    while t < dur + 0.01:
-        t1 = min(t + step, dur)
-        segs.append((t, t1))
-        t = t1
-        if t >= dur:
-            break
+    t_ms = 0
+    while t_ms < dur_ms:
+        t1_ms = min(t_ms + step_ms, dur_ms)
+        segs.append((t_ms / 1000.0, t1_ms / 1000.0))
+        t_ms = t1_ms
     return segs
 
 

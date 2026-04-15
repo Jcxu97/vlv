@@ -25,7 +25,11 @@ except ImportError:
     parse_srt_to_lines = None  # type: ignore[misc,assignment]
 
 OUT = PROJECT_ROOT / "out"
-COOKIES = PROJECT_ROOT / "cookies.txt"
+_CRED_DIR = PROJECT_ROOT / ".credentials"
+COOKIES = _CRED_DIR / "cookies.txt"
+
+SRT_RAW_MAX_CHARS = 50_000
+VTT_RAW_MAX_CHARS = 80_000
 
 
 def _resolve_out_dir(
@@ -103,6 +107,12 @@ def run_ytdlp(
         sys.executable,
         "-m",
         "yt_dlp",
+        "--socket-timeout",
+        "60",
+        "--retries",
+        "5",
+        "--extractor-retries",
+        "5",
         "--write-subs",
         "--write-auto-subs",
         "--sub-langs",
@@ -141,8 +151,29 @@ def run_ytdlp(
 DANMU_RE = re.compile(r'<d p="([^"]+)">([^<]*)</d>')
 
 
-def parse_danmaku_xml(path: Path) -> list[tuple[float, str]]:
-    text = path.read_text(encoding="utf-8", errors="replace")
+def _parse_danmaku_xml_etree(text: str) -> list[tuple[float, str]]:
+    """Parse danmaku XML using ElementTree (handles CDATA, entities, etc.)."""
+    import xml.etree.ElementTree as ET
+    rows: list[tuple[float, str]] = []
+    root = ET.fromstring(text)
+    for d in root.iter("d"):
+        p_attr = d.get("p", "")
+        body = (d.text or "").strip()
+        if not body:
+            continue
+        parts = p_attr.split(",")
+        try:
+            t = float(parts[0])
+        except (IndexError, ValueError):
+            continue
+        if re.fullmatch(r"\d", body):
+            continue
+        rows.append((t, body))
+    return rows
+
+
+def _parse_danmaku_xml_regex(text: str) -> list[tuple[float, str]]:
+    """Fallback regex parser for malformed XML."""
     rows: list[tuple[float, str]] = []
     for m in DANMU_RE.finditer(text):
         p = m.group(1).split(",")
@@ -151,11 +182,18 @@ def parse_danmaku_xml(path: Path) -> list[tuple[float, str]]:
         except (IndexError, ValueError):
             continue
         body = m.group(2).strip()
-        if not body:
-            continue
-        if re.fullmatch(r"\d{1,2}", body):
+        if not body or re.fullmatch(r"\d", body):
             continue
         rows.append((t, body))
+    return rows
+
+
+def parse_danmaku_xml(path: Path) -> list[tuple[float, str]]:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        rows = _parse_danmaku_xml_etree(text)
+    except Exception:
+        rows = _parse_danmaku_xml_regex(text)
     rows.sort(key=lambda x: x[0])
     return rows
 
@@ -164,7 +202,7 @@ def is_noise_line(s: str) -> bool:
     s = s.strip()
     if not s:
         return True
-    if re.fullmatch(r"\d{1,2}", s):
+    if re.fullmatch(r"\d", s):
         return True
     return False
 
@@ -191,14 +229,14 @@ def merge_outputs() -> tuple[str, Path]:
             for ts, line in parse_srt_to_lines(raw):
                 chunks.append(f"[{ts}] {line}\n")
         else:
-            chunks.append(raw[:50000])
-            if len(raw) > 50000:
+            chunks.append(raw[:SRT_RAW_MAX_CHARS])
+            if len(raw) > SRT_RAW_MAX_CHARS:
                 chunks.append("\n... [truncated] ...\n")
         chunks.append("\n")
 
     for f in sorted(OUT.glob("*.vtt")):
         chunks.append(f"===== 字幕 {f.name}（VTT 原文）=====\n")
-        chunks.append(f.read_text(encoding="utf-8", errors="replace")[:80000])
+        chunks.append(f.read_text(encoding="utf-8", errors="replace")[:VTT_RAW_MAX_CHARS])
         chunks.append("\n\n")
 
     sub_files = sorted(OUT.glob("*.xml"))
@@ -303,6 +341,11 @@ def main() -> None:
         help="仅下载字幕/弹幕，不下载整片视频（省空间与流量；多模态需自备本地视频或 out 内已有媒体）",
     )
     ap.add_argument(
+        "--allow-any-url",
+        action="store_true",
+        help="允许非 B 站域名的 URL（默认仅允许 bilibili.com / b23.tv）",
+    )
+    ap.add_argument(
         "--out-dir",
         type=Path,
         default=None,
@@ -365,6 +408,15 @@ def main() -> None:
             print(
                 "既不是可读的本地文件路径，也不是以 http(s) 开头的链接。\n"
                 "请检查路径是否存在，或粘贴完整 B 站链接。",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        _BILIBILI_DOMAINS = ("bilibili.com", "b23.tv", "bilivideo.com", "bilivideo.cn")
+        allow_any = getattr(args, "allow_any_url", False)
+        if not allow_any and not any(d in line.lower() for d in _BILIBILI_DOMAINS):
+            print(
+                f"URL 不包含已知 B 站域名 ({', '.join(_BILIBILI_DOMAINS)})。\n"
+                "若确实需要下载非 B 站链接，请加 --allow-any-url 参数。",
                 file=sys.stderr,
             )
             raise SystemExit(1)

@@ -61,10 +61,18 @@ def extract_video_frame(video: Path, t_sec: float, out_png: Path) -> None:
         "1",
         str(out_png),
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, timeout=60)
+
+
+IMAGE_MAX_BYTES = 50 * 1024 * 1024
 
 
 def image_to_data_url(path: Path) -> str:
+    size = path.stat().st_size
+    if size > IMAGE_MAX_BYTES:
+        raise RuntimeError(
+            f"图片 {path.name} 大小 {size // 1024 // 1024}MB 超过 {IMAGE_MAX_BYTES // 1024 // 1024}MB 上限"
+        )
     data = path.read_bytes()
     mime, _ = mimetypes.guess_type(str(path))
     if not mime:

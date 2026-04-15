@@ -16,8 +16,36 @@ from bilibili_vision.paths import PROJECT_ROOT
 _pw_br = PROJECT_ROOT / "pw-browsers"
 if _pw_br.is_dir():
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(_pw_br.resolve()))
-STATE_PATH = PROJECT_ROOT / "browser_state.json"
-COOKIES_PATH = PROJECT_ROOT / "cookies.txt"
+_CRED_DIR = PROJECT_ROOT / ".credentials"
+
+
+def _ensure_cred_dir() -> Path:
+    d = _CRED_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        try:
+            os.chmod(d, 0o700)
+        except OSError:
+            pass
+    return d
+
+
+def _migrate_legacy_cred(name: str) -> None:
+    """If a credential file still lives in project root, move it to .credentials/."""
+    old = PROJECT_ROOT / name
+    new = _ensure_cred_dir() / name
+    if old.is_file() and not new.is_file():
+        try:
+            old.rename(new)
+        except OSError:
+            pass
+
+
+_migrate_legacy_cred("browser_state.json")
+_migrate_legacy_cred("cookies.txt")
+
+STATE_PATH = _CRED_DIR / "browser_state.json"
+COOKIES_PATH = _CRED_DIR / "cookies.txt"
 
 BILI_NAV_API = "https://api.bilibili.com/x/web-interface/nav"
 

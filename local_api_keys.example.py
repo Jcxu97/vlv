@@ -29,3 +29,9 @@ XAI_API_KEY = ""
 # OPENAI_API_KEY = "local"
 # OPENAI_BASE_URL = "http://127.0.0.1:8090/v1"
 # OPENAI_MODEL = "gemma-4-31b-4bit"
+
+# --- Databricks AI Gateway（任意 OpenAI 兼容端点，自定义 URL / Key / Model）---
+# LLM_PROVIDER = "openai"
+# OPENAI_API_KEY = "dapi..."
+# OPENAI_BASE_URL = "https://<workspace>.azuredatabricks.net/mlflow/v1"
+# OPENAI_MODEL = "databricks-claude-opus-4-6"

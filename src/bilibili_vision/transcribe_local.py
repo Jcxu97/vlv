@@ -5,9 +5,6 @@ B 站无字幕时：yt-dlp 下音频 + faster-whisper 转写；亦支持本机 M
 from __future__ import annotations
 
 import os
-
-# Windows 上 HF 缓存常无法建 symlink，会刷屏；不影响下载与使用。
-os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 import re
 import shutil
 import subprocess
@@ -343,9 +340,12 @@ def _srt_timestamp(sec: float) -> str:
     if ms >= 1000:
         ms = 0
         s += 1
-        if s >= 60:
-            s = 0
-            m += 1
+    if s >= 60:
+        s -= 60
+        m += 1
+    if m >= 60:
+        m -= 60
+        h += 1
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
@@ -366,11 +366,28 @@ def segments_to_srt(segments, path: Path) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
+_cuda_dlls_registered = False
+_hf_env_initialized = False
+
+
+def _ensure_hf_env() -> None:
+    global _hf_env_initialized
+    if _hf_env_initialized:
+        return
+    _hf_env_initialized = True
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+
 def _register_windows_cuda_dll_paths() -> None:
     """把 pip 安装的 nvidia-* 包里的 bin 加入 DLL 搜索路径（Windows）。
 
     必须在 import ctranslate2 / faster_whisper **之前**调用，否则 cuBLAS 已按错误路径加载。
+    只执行一次；后续调用为 no-op。
     """
+    global _cuda_dlls_registered
+    if _cuda_dlls_registered:
+        return
+    _cuda_dlls_registered = True
     if sys.platform != "win32" or not hasattr(os, "add_dll_directory"):
         return
     try:
@@ -466,20 +483,31 @@ def resolve_whisper_device(requested: str) -> tuple[str, str]:
     return "cpu", "int8"
 
 
+_whisper_model_cache: dict[tuple[str, str, str], object] = {}
+
+
 def _create_whisper_model(model_ref: str, device_pref: str):
-    """创建 WhisperModel；GPU 初始化失败时自动回退 CPU。"""
+    """创建或返回缓存的 WhisperModel；GPU 初始化失败时自动回退 CPU。"""
+    _ensure_hf_env()
     if sys.platform == "win32":
         _register_windows_cuda_dll_paths()
     from faster_whisper import WhisperModel
 
     device, compute_type = resolve_whisper_device(device_pref)
+    cache_key = (model_ref, device, compute_type)
+    cached = _whisper_model_cache.get(cache_key)
+    if cached is not None:
+        print(f"复用已加载的 faster-whisper 模型 {model_ref!r}（{device} / {compute_type}）", flush=True)
+        return cached
 
     print(
         f"加载 faster-whisper 模型 {model_ref!r}（{device} / {compute_type}）…",
         flush=True,
     )
     try:
-        return WhisperModel(model_ref, device=device, compute_type=compute_type)
+        m = WhisperModel(model_ref, device=device, compute_type=compute_type)
+        _whisper_model_cache[cache_key] = m
+        return m
     except (KeyboardInterrupt, SystemExit):
         raise
     except BaseException as e:
@@ -493,7 +521,10 @@ def _create_whisper_model(model_ref: str, device_pref: str):
             " 可显式使用 --whisper-device cpu 跳过检测。",
             flush=True,
         )
-        return WhisperModel(model_ref, device="cpu", compute_type="int8")
+        fallback_key = (model_ref, "cpu", "int8")
+        m = WhisperModel(model_ref, device="cpu", compute_type="int8")
+        _whisper_model_cache[fallback_key] = m
+        return m
 
 
 def transcribe_audio_file(

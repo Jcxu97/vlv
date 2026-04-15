@@ -130,42 +130,52 @@ def normalize_chat_prior_turns(
     return out
 
 
+_ALLOWED_LOCAL_KEYS = frozenset({
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "XAI_API_KEY",
+    "GEMINI_MODEL",
+    "GROQ_MODEL",
+    "OPENAI_MODEL",
+    "OPENAI_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "XAI_MODEL",
+    "LLM_PROVIDER",
+})
+_ALLOWED_LLM_PROVIDERS = frozenset({"auto", "gemini", "openai", "groq", "anthropic", "xai"})
+_local_keys_loaded = False
+
+
 def _load_local_api_keys() -> None:
-    """从同目录 local_api_keys.py 注入环境变量（仅当尚未设置时）。"""
+    """从项目根目录 local_api_keys.py 安全读取 KEY = "value" 赋值行，注入环境变量。
+
+    不再使用 importlib exec_module（避免任意代码执行）；仅解析形如
+    ``KEY = "value"`` 或 ``KEY = 'value'`` 的简单赋值，忽略其余行。
+    """
+    global _local_keys_loaded
+    if _local_keys_loaded:
+        return
+    _local_keys_loaded = True
     p = PROJECT_ROOT / "local_api_keys.py"
     if not p.is_file():
         return
+    import re as _re
+    _assign_re = _re.compile(r'^([A-Z_]+)\s*=\s*["\'](.+?)["\']\s*$')
     try:
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("_bilibili_local_api_keys", p)
-        if spec is None or spec.loader is None:
-            return
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        for key in (
-            "GEMINI_API_KEY",
-            "GROQ_API_KEY",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "XAI_API_KEY",
-            "GEMINI_MODEL",
-            "GROQ_MODEL",
-            "OPENAI_MODEL",
-            "OPENAI_BASE_URL",
-            "ANTHROPIC_MODEL",
-            "XAI_MODEL",
-        ):
-            if hasattr(mod, key):
-                val = getattr(mod, key)
-                if isinstance(val, str) and val.strip():
-                    os.environ.setdefault(key, val.strip())
-        if hasattr(mod, "LLM_PROVIDER"):
-            lp = getattr(mod, "LLM_PROVIDER", "")
-            if isinstance(lp, str):
-                lv = lp.strip().lower()
-                if lv in ("auto", "gemini", "openai", "groq", "anthropic", "xai"):
-                    os.environ.setdefault("LLM_PROVIDER", lv)
+        for line in p.read_text(encoding="utf-8").splitlines():
+            m = _assign_re.match(line.strip())
+            if not m:
+                continue
+            key, val = m.group(1), m.group(2).strip()
+            if key not in _ALLOWED_LOCAL_KEYS or not val:
+                continue
+            if key == "LLM_PROVIDER":
+                val = val.lower()
+                if val not in _ALLOWED_LLM_PROVIDERS:
+                    continue
+            os.environ.setdefault(key, val)
     except Exception:
         pass
 
@@ -379,7 +389,7 @@ def _http_post_openai_chat_sse_deltas(
                     raise
                 if not raw:
                     break
-                buf += raw
+                buf += raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
                 while True:
                     pos = buf.find(b"\n")
                     if pos < 0:
@@ -465,13 +475,13 @@ def _gemini_generate(api_key: str, system: str, user: str) -> tuple[str, str]:
         "temperature": 0.35,
         "maxOutputTokens": 8192,
     }
+    gemini_headers = {"x-goog-api-key": api_key}
     for api_ver in ("v1beta", "v1"):
         for model in models_try:
             url = (
                 f"https://generativelanguage.googleapis.com/{api_ver}/models/"
-                f"{model}:generateContent?key={urllib.parse.quote(api_key, safe='')}"
+                f"{model}:generateContent"
             )
-            # v1 generateContent 不接受 systemInstruction，需并入首条 user（见 Google API 报错 Unknown name systemInstruction）
             if api_ver == "v1beta":
                 payload: dict = {
                     "systemInstruction": {"parts": [{"text": system}]},
@@ -485,7 +495,7 @@ def _gemini_generate(api_key: str, system: str, user: str) -> tuple[str, str]:
                     "generationConfig": gen_cfg,
                 }
             try:
-                out = _http_post_json(url, payload, None, timeout=120)
+                out = _http_post_json(url, payload, gemini_headers, timeout=120)
             except urllib.error.HTTPError as e:
                 try:
                     body = e.read().decode("utf-8", errors="replace")
@@ -555,11 +565,12 @@ def _gemini_multiturn(
         "temperature": CHAT_TEMPERATURE,
         "maxOutputTokens": 8192,
     }
+    gemini_headers = {"x-goog-api-key": api_key}
     for api_ver in ("v1beta", "v1"):
         for model in models_try:
             url = (
                 f"https://generativelanguage.googleapis.com/{api_ver}/models/"
-                f"{model}:generateContent?key={urllib.parse.quote(api_key, safe='')}"
+                f"{model}:generateContent"
             )
             if api_ver == "v1beta":
                 payload = {
@@ -578,7 +589,7 @@ def _gemini_multiturn(
                 }
             try:
                 to = 300 if need_slow else 120
-                out = _http_post_json(url, payload, None, timeout=to)
+                out = _http_post_json(url, payload, gemini_headers, timeout=to)
             except urllib.error.HTTPError as e:
                 try:
                     body = e.read().decode("utf-8", errors="replace")
@@ -1231,11 +1242,12 @@ def gemini_vision_caption_frame(
         "temperature": 0.2,
         "maxOutputTokens": max(160, int(FRAME_VISION_MAX_TOKENS) + 64),
     }
+    gemini_headers = {"x-goog-api-key": api_key}
     for api_ver in ("v1beta", "v1"):
         for mod in models_try:
             url = (
                 f"https://generativelanguage.googleapis.com/{api_ver}/models/"
-                f"{mod}:generateContent?key={urllib.parse.quote(api_key, safe='')}"
+                f"{mod}:generateContent"
             )
             if api_ver == "v1beta":
                 payload: dict[str, Any] = {
@@ -1253,7 +1265,7 @@ def gemini_vision_caption_frame(
                     "generationConfig": gen_cfg,
                 }
             try:
-                out = _http_post_json(url, payload, None, timeout=240)
+                out = _http_post_json(url, payload, gemini_headers, timeout=240)
             except urllib.error.HTTPError as e:
                 try:
                     body = e.read().decode("utf-8", errors="replace")
@@ -1430,90 +1442,109 @@ def chat_followup(
         _chat_system_with_vision(SYSTEM_CHAT_ZH, vpaths) if using_vision else SYSTEM_CHAT_ZH
     )
 
+    text, tag = _dispatch_multiturn(
+        provider,
+        sys_chat,
+        prior,
+        user_payload,
+        attach_vision_current=attach_vision_current,
+        vision_paths=vpaths or None,
+    )
+    return text, tag, user_payload
+
+
+def _resolve_provider_credentials(provider: Provider) -> tuple[str, str, str]:
+    """Return (api_key, base_url, model) for the given provider."""
     if provider == "gemini":
         key = os.environ.get("GEMINI_API_KEY", "").strip()
         if not key:
             raise RuntimeError("未设置环境变量 GEMINI_API_KEY")
-        text, model = _gemini_multiturn(
-            key,
-            sys_chat,
-            prior,
-            user_payload,
-            attach_vision_current=attach_vision_current,
-            vision_paths=vpaths or None,
-        )
-        return text, f"Gemini / {model}", user_payload
+        return key, "", ""
     if provider == "groq":
         key = os.environ.get("GROQ_API_KEY", "").strip()
         if not key:
             raise RuntimeError("未设置环境变量 GROQ_API_KEY")
-        text, model = _groq_multiturn(
-            key,
-            sys_chat,
-            prior,
-            user_payload,
-            attach_vision_current=attach_vision_current,
-            vision_paths=vpaths or None,
-        )
-        return text, f"Groq / {model}", user_payload
-    if provider in ("openai", "local"):
-        key, base, model = _local_openai_env_triple() if provider == "local" else (
+        return key, "https://api.groq.com/openai/v1", os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    if provider == "openai":
+        _require_real_openai_key_for_cloud()
+        return (
             os.environ.get("OPENAI_API_KEY", "").strip(),
             (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip(),
             (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip(),
         )
-        if provider == "openai":
-            _require_real_openai_key_for_cloud()
-        if provider == "local":
-            if not local_openai_provider_ready():
-                raise RuntimeError(
-                    "local 提供商需要本机 OPENAI_BASE_URL（如 http://127.0.0.1:18090/v1）与 OPENAI_MODEL"
-                )
-        text, used = _openai_compatible_multiturn(
-            key,
-            base,
-            model,
-            sys_chat,
-            prior,
-            user_payload,
-            attach_vision_current=attach_vision_current,
-            vision_paths=vpaths or None,
-        )
-        tag = f"本地 OpenAI 兼容 / {used}" if provider == "local" else f"OpenAI / {used}"
-        return text, tag, user_payload
+    if provider == "local":
+        if not local_openai_provider_ready():
+            raise RuntimeError(
+                "local 提供商需要本机 OPENAI_BASE_URL 与 OPENAI_MODEL（可与 GUI「③ VLM」同源）"
+            )
+        return _local_openai_env_triple()
     if provider == "xai":
         key = os.environ.get("XAI_API_KEY", "").strip()
         if not key:
             raise RuntimeError("未设置环境变量 XAI_API_KEY（xAI Grok）")
-        base = "https://api.x.ai/v1"
-        model = (os.environ.get("XAI_MODEL") or "grok-2-latest").strip()
-        text, used = _openai_compatible_multiturn(
-            key,
-            base,
-            model,
-            sys_chat,
-            prior,
-            user_payload,
-            attach_vision_current=attach_vision_current,
-            vision_paths=vpaths or None,
-        )
-        return text, f"xAI Grok / {used}", user_payload
+        return key, "https://api.x.ai/v1", (os.environ.get("XAI_MODEL") or "grok-2-latest").strip()
     if provider == "anthropic":
         key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not key:
             raise RuntimeError("未设置环境变量 ANTHROPIC_API_KEY")
-        model = (os.environ.get("ANTHROPIC_MODEL") or "claude-3-5-haiku-20241022").strip()
-        text, used = _anthropic_multiturn(
-            key,
-            model,
-            sys_chat,
-            prior,
-            user_payload,
-            attach_vision_current=attach_vision_current,
-            vision_paths=vpaths or None,
-        )
-        return text, f"Anthropic / {used}", user_payload
+        return key, "", (os.environ.get("ANTHROPIC_MODEL") or "claude-3-5-haiku-20241022").strip()
     raise RuntimeError(f"不支持的 provider：{provider!r}")
+
+
+def _provider_tag(provider: Provider, model_or_tag: str) -> str:
+    labels = {
+        "gemini": "Gemini",
+        "groq": "Groq",
+        "openai": "OpenAI",
+        "local": "本地 OpenAI 兼容",
+        "xai": "xAI Grok",
+        "anthropic": "Anthropic",
+    }
+    return f"{labels.get(provider, provider)} / {model_or_tag}"
+
+
+def _dispatch_generate(
+    provider: Provider,
+    system: str,
+    user: str,
+    *,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+) -> tuple[str, str]:
+    """Single-shot generation. Returns (body_text, display_tag)."""
+    key, base, model = _resolve_provider_credentials(provider)
+    if provider == "gemini":
+        body, mtag = _gemini_generate(key, system, user)
+        return body, _provider_tag(provider, mtag)
+    if provider == "anthropic":
+        body, mtag = _anthropic_generate(key, model, system, user)
+        return body, _provider_tag(provider, mtag)
+    body, mtag = _openai_compatible_chat(
+        key, base, model, system, user, max_tokens=max_tokens, temperature=temperature,
+    )
+    return body, _provider_tag(provider, mtag)
+
+
+def _dispatch_multiturn(
+    provider: Provider,
+    system: str,
+    prior: list[tuple[str, str, bool]],
+    user_payload: str,
+    *,
+    attach_vision_current: bool = False,
+    vision_paths: list[Path] | None = None,
+) -> tuple[str, str]:
+    """Multi-turn chat dispatch. Returns (body_text, display_tag)."""
+    key, base, model = _resolve_provider_credentials(provider)
+    kw = dict(attach_vision_current=attach_vision_current, vision_paths=vision_paths or None)
+    if provider == "gemini":
+        body, mtag = _gemini_multiturn(key, system, prior, user_payload, **kw)
+        return body, _provider_tag(provider, mtag)
+    if provider == "anthropic":
+        body, mtag = _anthropic_multiturn(key, model, system, prior, user_payload, **kw)
+        return body, _provider_tag(provider, mtag)
+    body, mtag = _openai_compatible_multiturn(key, base, model, system, prior, user_payload, **kw)
+    return body, _provider_tag(provider, mtag)
 
 
 def build_llm_report(
@@ -1524,50 +1555,7 @@ def build_llm_report(
     """生成完整报告文本（含与本地规则风格接近的抬头）。"""
     body_trunc, was_trunc = _truncate(merged_text)
     user = _user_prompt(body_trunc, was_trunc)
-
-    if provider == "gemini":
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 GEMINI_API_KEY")
-        body, model = _gemini_generate(key, SYSTEM_ZH, user)
-        tag = f"Gemini / {model}"
-    elif provider == "groq":
-        key = os.environ.get("GROQ_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 GROQ_API_KEY")
-        body, model = _groq_chat(key, SYSTEM_ZH, user)
-        tag = f"Groq / {model}"
-    elif provider in ("openai", "local"):
-        key, base, model = _local_openai_env_triple() if provider == "local" else (
-            os.environ.get("OPENAI_API_KEY", "").strip(),
-            (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip(),
-            (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip(),
-        )
-        if provider == "openai":
-            _require_real_openai_key_for_cloud()
-        if provider == "local" and not local_openai_provider_ready():
-            raise RuntimeError(
-                "local 提供商需要本机 OPENAI_BASE_URL 与 OPENAI_MODEL（可与 GUI「③ VLM」同源）"
-            )
-        body, used = _openai_compatible_chat(key, base, model, SYSTEM_ZH, user)
-        tag = f"本地 OpenAI 兼容 / {used}" if provider == "local" else f"OpenAI / {used}"
-    elif provider == "xai":
-        key = os.environ.get("XAI_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 XAI_API_KEY")
-        base = "https://api.x.ai/v1"
-        model = (os.environ.get("XAI_MODEL") or "grok-2-latest").strip()
-        body, used = _openai_compatible_chat(key, base, model, SYSTEM_ZH, user)
-        tag = f"xAI Grok / {used}"
-    elif provider == "anthropic":
-        key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 ANTHROPIC_API_KEY")
-        model = (os.environ.get("ANTHROPIC_MODEL") or "claude-3-5-haiku-20241022").strip()
-        body, used = _anthropic_generate(key, model, SYSTEM_ZH, user)
-        tag = f"Anthropic / {used}"
-    else:
-        raise RuntimeError(f"不支持的 provider：{provider!r}")
+    body, tag = _dispatch_generate(provider, SYSTEM_ZH, user)
 
     from .analyze_transcript import _report_header  # noqa: PLC0415 — 运行时导入，避免循环依赖
 
@@ -1630,50 +1618,7 @@ def build_llm_deep_report(
     """在基础报告之上生成第二篇深度分析（写入独立文件）。"""
     body_trunc, was_trunc = _truncate(merged_text)
     user = _user_prompt_deep(body_trunc, was_trunc, basic_report)
-
-    if provider == "gemini":
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 GEMINI_API_KEY")
-        body, model = _gemini_generate(key, SYSTEM_DEEP_ZH, user)
-        tag = f"Gemini / {model}"
-    elif provider == "groq":
-        key = os.environ.get("GROQ_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 GROQ_API_KEY")
-        body, model = _groq_chat(key, SYSTEM_DEEP_ZH, user)
-        tag = f"Groq / {model}"
-    elif provider in ("openai", "local"):
-        key, base, model = _local_openai_env_triple() if provider == "local" else (
-            os.environ.get("OPENAI_API_KEY", "").strip(),
-            (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip(),
-            (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip(),
-        )
-        if provider == "openai":
-            _require_real_openai_key_for_cloud()
-        if provider == "local" and not local_openai_provider_ready():
-            raise RuntimeError(
-                "local 提供商需要本机 OPENAI_BASE_URL 与 OPENAI_MODEL（可与 GUI「③ VLM」同源）"
-            )
-        body, used = _openai_compatible_chat(key, base, model, SYSTEM_DEEP_ZH, user)
-        tag = f"本地 OpenAI 兼容 / {used}" if provider == "local" else f"OpenAI / {used}"
-    elif provider == "xai":
-        key = os.environ.get("XAI_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 XAI_API_KEY")
-        base = "https://api.x.ai/v1"
-        model = (os.environ.get("XAI_MODEL") or "grok-2-latest").strip()
-        body, used = _openai_compatible_chat(key, base, model, SYSTEM_DEEP_ZH, user)
-        tag = f"xAI Grok / {used}"
-    elif provider == "anthropic":
-        key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("未设置环境变量 ANTHROPIC_API_KEY")
-        model = (os.environ.get("ANTHROPIC_MODEL") or "claude-3-5-haiku-20241022").strip()
-        body, used = _anthropic_generate(key, model, SYSTEM_DEEP_ZH, user)
-        tag = f"Anthropic / {used}"
-    else:
-        raise RuntimeError(f"不支持的 provider：{provider!r}")
+    body, tag = _dispatch_generate(provider, SYSTEM_DEEP_ZH, user)
 
     from datetime import datetime
 

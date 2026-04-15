@@ -6,7 +6,28 @@ from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SRC_DIR = PACKAGE_DIR.parent
-PROJECT_ROOT = SRC_DIR.parent
+
+_MARKER_FILES = ("README.md", "requirements.txt", "run_gui.py")
+
+
+def _find_project_root() -> Path:
+    """Walk up from PACKAGE_DIR looking for a repo marker file.
+
+    Falls back to SRC_DIR.parent (original heuristic) if no marker found,
+    which keeps the portable-embed layout working.
+    """
+    candidate = PACKAGE_DIR
+    for _ in range(6):
+        if any((candidate / m).is_file() for m in _MARKER_FILES):
+            return candidate
+        parent = candidate.parent
+        if parent == candidate:
+            break
+        candidate = parent
+    return SRC_DIR.parent
+
+
+PROJECT_ROOT = _find_project_root()
 
 __all__ = ["PACKAGE_DIR", "SRC_DIR", "PROJECT_ROOT", "subprocess_env"]
 

@@ -118,33 +118,30 @@ def split_three_choices_from_subs(subs: list[tuple[str, str]]) -> dict[str, str]
     return parts
 
 
-def top_danmu_themes(lines: list[str], top_n: int = 12) -> list[tuple[str, int]]:
-    """极轻量主题词统计（2～4 字片段 + 部分关键词）。"""
-    blob = " ".join(lines)
-    keywords = [
-        "死亡岛",
-        "生化",
-        "酒店",
-        "潮湿",
-        "溶洞",
-        "森林",
-        "营地",
-        "太阳能",
-        "围墙",
-        "尸潮",
-        "往日不再",
-        "行尸",
-        "物资",
-        "食物",
-        "通风",
-        "安全",
-    ]
+def top_danmu_themes(lines: list[str], top_n: int = 12, ngram_range: tuple[int, int] = (2, 4)) -> list[tuple[str, int]]:
+    """通用 n-gram 频次统计（自动提取高频 2~4 字片段，不依赖固定关键词表）。"""
+    blob = "".join(lines)
+    if not blob:
+        return []
     ctr: Counter[str] = Counter()
-    for kw in keywords:
-        c = blob.count(kw)
-        if c:
-            ctr[kw] += c
-    return ctr.most_common(top_n)
+    lo, hi = ngram_range
+    for n in range(lo, hi + 1):
+        for i in range(len(blob) - n + 1):
+            seg = blob[i : i + n]
+            if re.fullmatch(r"[\u4e00-\u9fff]+", seg):
+                ctr[seg] += 1
+    min_freq = max(3, len(lines) // 20)
+    filtered = [(w, c) for w, c in ctr.most_common(top_n * 5) if c >= min_freq]
+    deduped: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for w, c in sorted(filtered, key=lambda x: (-x[1], -len(x[0]))):
+        if any(w in longer for longer in seen):
+            continue
+        deduped.append((w, c))
+        seen.add(w)
+        if len(deduped) >= top_n:
+            break
+    return deduped
 
 
 def _report_header(merged_text: str, input_path: Path) -> str:
@@ -202,14 +199,9 @@ def build_report(
 
     lines.append("\n二、观众弹幕在讨论什么\n")
     if danmu_texts:
-        blob = "".join(danmu_texts)
         lines.append(
             "以下为弹幕文本的粗略关键词统计（不同视频差异会体现在频次与词项上；细节请查看合并文稿中的「弹幕」段）。\n"
         )
-        if any(k in blob for k in ("死亡岛", "生化", "庇护", "丧尸", "末日", "酒店")):
-            lines.append(
-                "本稿弹幕中可见较多与丧尸/末日题材游戏或影视的联想与玩梗。\n"
-            )
         themes = top_danmu_themes(danmu_texts)
         if themes:
             lines.append("\n关键词粗略频次（跨弹幕文本统计）：\n")
@@ -219,19 +211,9 @@ def build_report(
         lines.append("本集弹幕很少或缺失。\n")
 
     lines.append("\n三、一句话结论（供快速决策）\n")
-    shelter_keys = ("溶洞", "露营地", "度假酒店", "庇护所", "房车", "渔获")
-    looks_like_shelter_compare = any(k in script_full for k in shelter_keys)
-    if chunks and looks_like_shelter_compare:
-        lines.append(
-            "若旁白结构为「三处庇护所对比」：度假酒店偏物资与舒适但难守；露营地偏水与渔获与房车机动；"
-            "溶洞偏水路屏障与纵深，但要重点评估潮湿、采光、存粮与通风。\n"
-        )
-    elif script_full:
-        lines.append(
-            "本条以口播/规则说明为主（如多阵营、生存设定等）；具体以第一节摘要与合并文稿为准，勿套用其他视频的固定模板。\n"
-        )
-    else:
-        lines.append("稿件类型不固定，此处不强行给单一结论；请结合第一节摘要与合并文稿判断。\n")
+    lines.append(
+        "具体以第一节摘要与合并文稿为准；规则摘要仅供参考，详细分析建议使用大模型报告。\n"
+    )
     return "".join(lines)
 
 

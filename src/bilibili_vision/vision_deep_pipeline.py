@@ -37,7 +37,7 @@ def dedup_dir() -> Path:
     return vision_root() / "frames_dedup"
 
 _paddle_ocr_singleton: Any = None
-_paddle_ocr_key: tuple[bool, bool] | None = None
+_paddle_ocr_key: tuple[bool, bool, str] | None = None
 
 
 def _log(cb: Callable[[str], None] | None, msg: str) -> None:
@@ -56,14 +56,8 @@ def _emit_gui_progress(m: str, v: int = 0, t: str = "") -> None:
 
 
 def _find_ffmpeg() -> Path | None:
-    cand = PROJECT_ROOT / "ffmpeg" / "ffmpeg.exe"
-    if cand.is_file():
-        return cand
-    cand2 = PROJECT_ROOT / "ffmpeg" / "ffmpeg"
-    if cand2.is_file():
-        return cand2
-    w = shutil.which("ffmpeg")
-    return Path(w) if w else None
+    from .ffmpeg_utils import find_ffmpeg
+    return find_ffmpeg()
 
 
 def _is_video_file(p: Path) -> bool:
@@ -229,17 +223,18 @@ def _get_paddle_ocr(*, use_gpu: bool, log: Callable[[str], None] | None) -> Any:
         from paddleocr import PaddleOCR  # type: ignore
     except ImportError:
         return None
-    key = (use_gpu,)
+    lang = "ch"
+    key = (use_gpu, True, lang)
     if _paddle_ocr_singleton is not None and _paddle_ocr_key == key:
         return _paddle_ocr_singleton
     _log(log, "[OCR] 初始化 PaddleOCR（首次较慢）…")
     try:
-        ocr = PaddleOCR(use_angle_cls=True, lang="ch", use_gpu=use_gpu, show_log=False)
+        ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu, show_log=False)
     except TypeError:
         try:
-            ocr = PaddleOCR(use_angle_cls=True, lang="ch", use_gpu=use_gpu)
+            ocr = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
         except TypeError:
-            ocr = PaddleOCR(use_angle_cls=True, lang="ch")
+            ocr = PaddleOCR(use_angle_cls=True, lang=lang)
     _paddle_ocr_singleton = ocr
     _paddle_ocr_key = key
     return ocr
@@ -273,9 +268,12 @@ def run_paddle_ocr_on_frame(
             except AttributeError:
                 resample = Image.LANCZOS
             im = im.resize((im.width * 2, im.height * 2), resample)
+        import tempfile
         vr = vision_root()
-        tmp = vr / "_ocr_work.jpg"
         vr.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(suffix=".jpg", dir=str(vr))
+        os.close(fd)
+        tmp = Path(tmp_path)
         im.save(tmp, quality=95)
         work_path = tmp
     except OSError:
@@ -284,6 +282,12 @@ def run_paddle_ocr_on_frame(
         r = ocr.ocr(str(work_path), cls=True)
     except Exception:
         return ""
+    finally:
+        if work_path != image_path:
+            try:
+                work_path.unlink(missing_ok=True)
+            except OSError:
+                pass
     lines: list[str] = []
     if r and r[0]:
         for block in r[0]:
@@ -337,50 +341,32 @@ def run_vlm_on_frame(
         except Exception as e:
             return "", str(e)
 
-    script = Path(__file__).resolve().parent / "local_vlm_openai_client.py"
-    # 与 vision_deep_pipeline 自身同一解释器（多为 python_embed），避免误用 venv_gemma4
-    # 里带 openai/jiter 的环境而在「智能应用控制」下 DLL 被拦。
-    py_exe = Path(sys.executable)
-    if not script.is_file():
-        _log(log, "[VLM] 未找到 local_vlm_openai_client.py，跳过。")
-        return "", ""
-    env = os.environ.copy()
-    env["OPENAI_API_KEY"] = api_key if api_key else "EMPTY"
-    env["LOCAL_VLM_USE_OPENAI_SDK"] = "0"
-    cmd = [
-        str(py_exe),
-        str(script),
-        "--quiet",
-        "--base-url",
-        base_url.rstrip("/"),
-        "--model",
-        model,
-        "--image",
-        str(image_path.resolve()),
-        "--prompt",
-        FRAME_VISION_PROMPT_ZH,
-        "--max-tokens",
-        str(int(FRAME_VISION_MAX_TOKENS)),
-    ]
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=str(PROJECT_ROOT),
-            env=env,
-            timeout=720,
+        from .llm_analyze import (
+            _http_post_json,
+            _normalize_openai_v1_base,
+            _openai_user_content_parts,
+            _parse_assistant_openai_content,
         )
-        if proc.returncode != 0:
-            err = (proc.stderr or proc.stdout or "").strip()
-            if len(err) > 6000:
-                err = err[:6000] + "\n…(stderr 已截断)"
-            return "", err
-        return (proc.stdout or "").strip(), ""
-    except (subprocess.TimeoutExpired, OSError) as e:
-        _log(log, f"[VLM] 调用异常：{e}")
+        key = api_key if api_key else "EMPTY"
+        b = _normalize_openai_v1_base(base_url.rstrip("/"))
+        url = b.rstrip("/") + "/chat/completions"
+        user_content = _openai_user_content_parts(FRAME_VISION_PROMPT_ZH, [image_path])
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "你是视频画面助理。只依据图像作答，简短客观；不要编造屏幕外内容。"},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.2,
+            "max_tokens": int(FRAME_VISION_MAX_TOKENS),
+        }
+        headers = {"Authorization": f"Bearer {key}"}
+        out = _http_post_json(url, payload, headers, timeout=180)
+        raw = out["choices"][0]["message"]["content"]
+        text = _parse_assistant_openai_content(raw)
+        return (text or "").strip(), ""
+    except Exception as e:
         return "", str(e)
 
 

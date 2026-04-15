@@ -25,12 +25,68 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from bilibili_vision.paths import PROJECT_ROOT, subprocess_env
-
-# 产品显示名（窗口标题、侧栏；与 README 一致）
-# VLV = Video Listen View（Local & Bilibili）
-APP_TITLE = "VLV · Video Listen View"
-APP_BRAND = "VLV"
-APP_TAGLINE = "Video Listen View · Local & Bilibili"
+from bilibili_vision.gui_common import (  # noqa: F401 — re-export for backward compat
+    APP_BRAND,
+    APP_TAGLINE,
+    APP_TITLE,
+    A_BG,
+    A_CARD,
+    A_CARD_BORDER,
+    A_COMPOSER,
+    A_ERR,
+    A_META,
+    A_TEXT,
+    A_USER,
+    API_SECTION_MUTED,
+    CARD_BORDER,
+    CARD_SHADOW,
+    COMPOSER_INPUT_BG,
+    COMPOSER_STOP_IDLE,
+    COMPOSER_TOOLBAR_BG,
+    CollapsibleCard,
+    FLOW_FULL_INFO_BG,
+    FLOW_FULL_INFO_BORDER,
+    FLOW_FULL_MUTED,
+    FLOW_SUB_INFO_BG,
+    FLOW_SUB_INFO_BORDER,
+    FLOW_SUB_MUTED,
+    NAV_ACTIVE_BG,
+    NAV_BG,
+    NAV_DIVIDER,
+    NAV_HOVER_BG,
+    NAV_SIDEBAR_BG,
+    SCROLL_TROUGH,
+    SECTION_HEADER_FG,
+    SPACING_LG,
+    SPACING_MD,
+    SPACING_SM,
+    SPACING_XL,
+    SPACING_XS,
+    STATUS_ERROR,
+    STATUS_RUNNING,
+    STATUS_SUCCESS,
+    STATUS_WARNING,
+    T_ACCENT,
+    T_ACCENT_ACTIVE,
+    T_BG,
+    T_BORDER,
+    T_ENTRY,
+    T_MUTED,
+    T_PAGE,
+    T_PANEL,
+    T_RAISED,
+    T_SELECT,
+    T_SURFACE,
+    T_TEXT,
+    WORKSPACE_TAB_IDLE,
+    WORKSPACE_TAB_SELECTED,
+    detect_tk_scale,
+    font_soft_factor,
+    pick_mono_family,
+    pick_sans_cjk,
+    read_gui_scale_env,
+    win_set_per_monitor_dpi,
+)
 
 # 子进程 analyze_transcript / vision_deep_pipeline 输出的机器可读进度前缀
 _GUI_PROGRESS_PREFIX = "__GUI_PROGRESS__ "
@@ -56,82 +112,12 @@ from bilibili_vision.transcribe_local import (
     is_supported_local_media,
 )
 
-# Windows：PROCESS_PER_MONITOR_DPI_AWARE_V2，须在创建任何 Tk 窗口前调用
-_WIN_PMDPI_V2 = 2
-
-
-def _win_set_per_monitor_dpi() -> None:
-    if sys.platform != "win32":
-        return
-    try:
-        import ctypes
-
-        ctypes.windll.shcore.SetProcessDpiAwareness(_WIN_PMDPI_V2)
-    except (AttributeError, OSError):
-        try:
-            import ctypes
-
-            ctypes.windll.user32.SetProcessDPIAware()
-        except (AttributeError, OSError):
-            pass
-
-
-def _read_gui_scale_env() -> float | None:
-    raw = os.environ.get("BILIBILI_GUI_SCALE", "").strip()
-    if not raw:
-        return None
-    try:
-        return max(0.75, min(float(raw), 4.0))
-    except ValueError:
-        return None
-
-
-def _detect_tk_scale(widget: tk.Misc) -> float:
-    env = _read_gui_scale_env()
-    if env is not None:
-        return env
-    try:
-        px_per_inch = float(widget.winfo_fpixels("1i"))
-        s = px_per_inch / 72.0
-    except tk.TclError:
-        s = 1.0
-    return max(1.0, min(s, 3.0))
-
-
-def _pick_mono_family(root: tk.Misc) -> str:
-    try:
-        families = set(tkfont.families(root))
-    except tk.TclError:
-        return "Consolas"
-    for name in ("Cascadia Mono", "JetBrains Mono", "Consolas", "Lucida Console"):
-        if name in families:
-            return name
-    return "Consolas"
-
-
-def _font_soft_factor(geom_scale: float) -> float:
-    """高 DPI 下 tk scaling 已放大界面，字号不要再按 geom 线性乘，只做轻微补偿。"""
-    g = min(max(geom_scale, 1.0), 2.25)
-    return 1.0 + (g - 1.0) * 0.28
-
-
-def _pick_sans_cjk(root: tk.Misc) -> str:
-    """正文用无衬线 + 中文优先，避免 Tk Text 默认回退成宋体发糊。"""
-    try:
-        families = set(tkfont.families(root))
-    except tk.TclError:
-        return "Segoe UI"
-    for name in (
-        "Microsoft YaHei UI",
-        "Microsoft YaHei",
-        "PingFang SC",
-        "Source Han Sans SC",
-        "Noto Sans CJK SC",
-        "Segoe UI",
-    ):
-        if name in families:
-            return name
-    return "Segoe UI"
+_win_set_per_monitor_dpi = win_set_per_monitor_dpi
+_read_gui_scale_env = read_gui_scale_env
+_detect_tk_scale = detect_tk_scale
+_pick_mono_family = pick_mono_family
+_font_soft_factor = font_soft_factor
+_pick_sans_cjk = pick_sans_cjk
 
 
 # 单次任务输出在 out/YYYY-MM-DD/HHMMSS_标题_BV…/；运行中由子进程回写 BILIBILI_VISION_OUT；prefs 只记 _active_session_out，不污染全局 env。
@@ -266,57 +252,8 @@ def _save_llm_gui_chat_prefs(
     except OSError:
         pass
 
-# 浅色工作台侧栏（Cursor / Codex 式层次，非深色）
-T_PAGE = "#f6f8fa"
-T_PANEL = "#ffffff"
-T_BG = T_PAGE
-T_SURFACE = T_PANEL
-T_RAISED = "#eff2f6"
-T_BORDER = "#d0d7de"
-T_TEXT = "#1f2328"
-T_MUTED = "#656d76"
-T_ACCENT = "#2563eb"
-T_ACCENT_ACTIVE = "#1d4ed8"
-T_ENTRY = T_PANEL
-T_SELECT = "#dbeafe"
 
-NAV_BG = T_PAGE
-NAV_SIDEBAR_BG = T_PAGE
-NAV_ACTIVE_BG = T_PANEL
-NAV_HOVER_BG = "#eef1f6"
-NAV_DIVIDER = T_BORDER
-
-# 工作区标签：中性灰底 + 选中白底（去掉便签暖色）
-WORKSPACE_TAB_IDLE = "#e8ecf2"
-WORKSPACE_TAB_SELECTED = T_PANEL
-
-# 对话气泡
-A_BG = T_PANEL
-A_USER = "#e8f0fe"
-A_CARD = "#f6f8fa"
-A_CARD_BORDER = T_BORDER
-A_META = T_MUTED
-A_ERR = "#fef2f2"
-A_COMPOSER = T_PANEL
-A_TEXT = T_TEXT
-
-# 本地对话输入区：浅色底栏（非深色）
-COMPOSER_INPUT_BG = "#fafbfc"
-COMPOSER_TOOLBAR_BG = "#f3f5f9"
-COMPOSER_STOP_IDLE = "#b1bac4"
-
-SCROLL_TROUGH = "#e8ecf2"
-
-# API 设置页：次要说明文字色
-API_SECTION_MUTED = "#57606a"
-
-# 流程页：信息条配色
-FLOW_SUB_INFO_BG = "#ecfdf5"
-FLOW_SUB_INFO_BORDER = "#6ee7b7"
-FLOW_SUB_MUTED = "#047857"
-FLOW_FULL_INFO_BG = "#fff7ed"
-FLOW_FULL_INFO_BORDER = "#fdba74"
-FLOW_FULL_MUTED = "#9a3412"
+# Theme colors, DPI/font helpers are imported from gui_common above.
 
 # 运行页「?」悬停：长说明（正文只保留一行提示）
 FLOW_HELP_MULTIMODAL = (
@@ -957,23 +894,26 @@ class App(tk.Tk):
         self._nav_inners: dict[str, tk.Frame] = {}
         self._current_nav = ""
 
+        _nav_first = True
+
         def nav_item(key: str, title: str) -> None:
+            nonlocal _nav_first
+            if not _nav_first:
+                tk.Frame(self._nav, bg=CARD_BORDER, height=1).pack(
+                    fill=tk.X, padx=(SPACING_LG, SPACING_MD),
+                )
+            _nav_first = False
             row = tk.Frame(self._nav, bg=NAV_SIDEBAR_BG, cursor="hand2")
-            row.pack(fill=tk.X, padx=(12, 10), pady=2)
+            row.pack(fill=tk.X, padx=(SPACING_MD, SPACING_SM), pady=1)
             accent = tk.Frame(row, width=3, bg=NAV_SIDEBAR_BG)
             accent.pack(side=tk.LEFT, fill=tk.Y)
             accent.pack_propagate(False)
             inner = tk.Frame(row, bg=NAV_SIDEBAR_BG, cursor="hand2")
             inner.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             lb = tk.Label(
-                inner,
-                text=title,
-                font=self._font_ui,
-                bg=NAV_SIDEBAR_BG,
-                fg=T_TEXT,
-                anchor=tk.W,
-                padx=12,
-                pady=7,
+                inner, text=title, font=self._font_ui,
+                bg=NAV_SIDEBAR_BG, fg=T_TEXT, anchor=tk.W,
+                padx=SPACING_MD, pady=SPACING_SM,
             )
             lb.pack(fill=tk.X)
             self._nav_rows[key] = row
@@ -1000,6 +940,16 @@ class App(tk.Tk):
         nav_item("flow", "内容提取与分析")
         nav_item("local_chat", "对话")
         nav_item("api", "API 与模型")
+
+        nav_spacer = tk.Frame(self._nav, bg=NAV_BG)
+        nav_spacer.pack(fill=tk.BOTH, expand=True)
+        tk.Frame(self._nav, bg=CARD_BORDER, height=1).pack(fill=tk.X, padx=SPACING_LG)
+        gear_row = tk.Frame(self._nav, bg=NAV_BG)
+        gear_row.pack(fill=tk.X, padx=SPACING_LG, pady=SPACING_SM)
+        tk.Label(
+            gear_row, text="\u2699  设置", font=self._font_hint,
+            bg=NAV_BG, fg=T_MUTED, anchor=tk.W, cursor="hand2",
+        ).pack(anchor=tk.W)
 
         tk.Frame(main, bg=NAV_DIVIDER, width=1).pack(side=tk.LEFT, fill=tk.Y)
 
@@ -1568,6 +1518,11 @@ class App(tk.Tk):
             )
             self.flow_agent_panel.pack(fill=tk.BOTH, expand=True)
 
+    def _refresh_api_status_dots(self) -> None:
+        for card, key_var in getattr(self, "_api_provider_cards", []):
+            color = STATUS_SUCCESS if key_var.get().strip() else T_MUTED
+            card.set_status_dot(color)
+
     def _apply_llm_clicked(self, *, save_file: bool) -> None:
         self._sync_llm_env_from_form()
         _save_gui_llm_provider_pref(self.llm_provider_var.get())
@@ -1577,6 +1532,7 @@ class App(tk.Tk):
             chat_local_model=self._chat_local_model.get(),
             chat_local_key=self._chat_local_key.get(),
         )
+        self._refresh_api_status_dots()
         self.agent_session.clear()
         self.prepare_chat_env_for_dialogue()
         self.agent_session._provider = self.resolve_chat_provider_for_dialogue()
@@ -1798,126 +1754,60 @@ class App(tk.Tk):
             row=0, column=1, sticky="ew"
         )
 
-        sec = tk.Frame(inner, bg=T_PAGE)
-        sec.pack(fill=tk.X, pady=(8, 12))
         tk.Label(
-            sec,
-            text="各平台凭据",
-            font=self._font_title,
-            bg=T_PAGE,
-            fg=T_TEXT,
-        ).pack(side=tk.LEFT)
+            inner, text="各平台凭据", font=self._font_title,
+            bg=T_PAGE, fg=T_TEXT,
+        ).pack(anchor=tk.W, pady=(SPACING_SM, SPACING_MD))
 
         model_entry_w = 30
+        self._api_provider_cards: list[tuple[CollapsibleCard, tk.StringVar]] = []
 
         def provider_block(
             parent: tk.Misc,
             title: str,
             key_var: tk.StringVar,
             model_var: tk.StringVar,
-            model_hint: str,
             extra_var: tk.StringVar | None = None,
             extra_lbl: str = "",
         ) -> None:
-            shell = tk.Frame(parent, bg=T_PAGE)
-            shell.pack(fill=tk.X, pady=(0, 12))
-            card = tk.Frame(
-                shell,
-                bg=T_PANEL,
-                highlightbackground=T_BORDER,
-                highlightthickness=1,
+            dot_color = STATUS_SUCCESS if key_var.get().strip() else T_MUTED
+            card = CollapsibleCard(
+                parent, title, initially_open=False,
+                font=(self._font_title[0], self._font_title[1], "bold"),
+                status_dot_color=dot_color,
             )
-            card.pack(fill=tk.X)
-            inner = tk.Frame(card, bg=T_PANEL)
-            inner.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
-            tk.Label(
-                inner,
-                text=title,
-                font=self._font_title,
-                bg=T_PANEL,
-                fg=T_ACCENT,
-                anchor=tk.W,
-            ).pack(fill=tk.X)
-            row = tk.Frame(inner, bg=T_PANEL)
-            row.pack(fill=tk.X, pady=(12, 0))
+            card.pack(fill=tk.X, pady=(0, SPACING_SM))
+            self._api_provider_cards.append((card, key_var))
+            body = card.body
+            row = tk.Frame(body, bg=T_PANEL)
+            row.pack(fill=tk.X, pady=(0, SPACING_XS))
             row.grid_columnconfigure(1, weight=1)
-            tk.Label(
-                row,
-                text="API Key",
-                bg=T_PANEL,
-                fg=T_TEXT,
-                font=self._font_ui,
-            ).grid(row=0, column=0, sticky=tk.W, padx=(0, 12), pady=2)
-            ttk.Entry(row, textvariable=key_var, show="•").grid(
-                row=0, column=1, sticky=tk.EW, padx=(0, 20), pady=2
+            tk.Label(row, text="API Key", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+                row=0, column=0, sticky=tk.W, padx=(0, SPACING_MD), pady=2,
             )
-            tk.Label(
-                row,
-                text="模型 ID",
-                bg=T_PANEL,
-                fg=T_TEXT,
-                font=self._font_ui,
-            ).grid(row=0, column=2, sticky=tk.W, padx=(0, 10), pady=2)
+            ttk.Entry(row, textvariable=key_var, show="\u2022").grid(
+                row=0, column=1, sticky=tk.EW, padx=(0, SPACING_LG), pady=2,
+            )
+            tk.Label(row, text="模型 ID", bg=T_PANEL, fg=T_TEXT, font=self._font_ui).grid(
+                row=0, column=2, sticky=tk.W, padx=(0, SPACING_SM), pady=2,
+            )
             ttk.Entry(row, textvariable=model_var, width=model_entry_w).grid(
-                row=0, column=3, sticky=tk.W, pady=2
+                row=0, column=3, sticky=tk.W, pady=2,
             )
-            if model_hint:
-                tk.Label(
-                    inner,
-                    text=model_hint,
-                    bg=T_PANEL,
-                    fg=API_SECTION_MUTED,
-                    font=hint_small,
-                    wraplength=max(280, hint_wrap - 48),
-                    justify=tk.LEFT,
-                ).pack(anchor=tk.W, pady=(8, 0))
             if extra_var is not None and extra_lbl:
-                tk.Label(
-                    inner,
-                    text=extra_lbl,
-                    bg=T_PANEL,
-                    fg=T_TEXT,
-                    font=self._font_ui,
-                ).pack(anchor=tk.W, pady=(14, 6))
-                ttk.Entry(inner, textvariable=extra_var).pack(fill=tk.X)
+                tk.Label(body, text=extra_lbl, bg=T_PANEL, fg=T_TEXT, font=self._font_ui).pack(
+                    anchor=tk.W, pady=(SPACING_SM, SPACING_XS),
+                )
+                ttk.Entry(body, textvariable=extra_var).pack(fill=tk.X)
 
+        provider_block(inner, "Google Gemini", self._llm_gemini_key, self._llm_gemini_model)
         provider_block(
-            inner,
-            "Google Gemini",
-            self._llm_gemini_key,
-            self._llm_gemini_model,
-            "",
+            inner, "OpenAI（GPT）", self._llm_openai_key, self._llm_openai_model,
+            self._llm_openai_base, "API 根 URL（可选）",
         )
-        provider_block(
-            inner,
-            "OpenAI（GPT）",
-            self._llm_openai_key,
-            self._llm_openai_model,
-            "",
-            self._llm_openai_base,
-            "API 根 URL（可选）",
-        )
-        provider_block(
-            inner,
-            "Groq",
-            self._llm_groq_key,
-            self._llm_groq_model,
-            "",
-        )
-        provider_block(
-            inner,
-            "Anthropic Claude",
-            self._llm_anthropic_key,
-            self._llm_anthropic_model,
-            "",
-        )
-        provider_block(
-            inner,
-            "xAI Grok",
-            self._llm_xai_key,
-            self._llm_xai_model,
-            "",
-        )
+        provider_block(inner, "Groq", self._llm_groq_key, self._llm_groq_model)
+        provider_block(inner, "Anthropic Claude", self._llm_anthropic_key, self._llm_anthropic_model)
+        provider_block(inner, "xAI Grok", self._llm_xai_key, self._llm_xai_model)
 
         _api_bind_wheel(inner)
         api_canvas.bind("<MouseWheel>", _api_wheel, add="+")
@@ -1946,24 +1836,37 @@ class App(tk.Tk):
             return FLOW_HELP_MULTIMODAL
         return FLOW_HELP_SUBTITLE
 
+    def _set_flow_mode(self, mode: str) -> None:
+        self.flow_mode_var.set(mode)
+        self._sync_seg_highlight()
+        self._sync_flow_mode_ui()
+
+    def _sync_seg_highlight(self) -> None:
+        cur = self.flow_mode_var.get()
+        for val, btn in getattr(self, "_seg_btns", {}).items():
+            if val == cur:
+                btn.configure(bg=T_ACCENT, fg="#ffffff")
+            else:
+                btn.configure(bg=T_RAISED, fg=T_MUTED)
+
     def _sync_flow_mode_ui(self, *_args: object) -> None:
         multimodal = self.flow_mode_var.get() == "multimodal"
+        self._sync_seg_highlight()
+        card_pipe = getattr(self, "_card_pipeline", None)
         if multimodal:
-            try:
-                self._flow_multimodal_scroll.pack(
-                    fill=tk.BOTH, expand=True, pady=(8, 0)
-                )
-            except tk.TclError:
-                pass
+            if card_pipe is not None:
+                try:
+                    card_pipe.pack(fill=tk.X, pady=(0, SPACING_SM))
+                except tk.TclError:
+                    pass
             self._flow_run_btn.configure(
-                text="开始：提取 + 深度 + 多模态（可选）"
+                text="开始：提取 + 深度 + 多模态"
             )
-            self._flow_title_lbl.configure(text="多模态：深度 + 可选画面")
             self._flow_info_box.configure(
                 bg=FLOW_FULL_INFO_BG, highlightbackground=FLOW_FULL_INFO_BORDER
             )
             self._flow_info_lbl.configure(
-                text="提示：B 站会下载视频到 out；画面任务需本机服务且与「③」URL 一致。悬停 ? 看详情。",
+                text="B 站会下载视频；画面任务需本机服务且与③ URL 一致。",
                 bg=FLOW_FULL_INFO_BG,
             )
             try:
@@ -1972,17 +1875,17 @@ class App(tk.Tk):
             except (tk.TclError, AttributeError):
                 pass
         else:
-            try:
-                self._flow_multimodal_scroll.pack_forget()
-            except tk.TclError:
-                pass
+            if card_pipe is not None:
+                try:
+                    card_pipe.pack_forget()
+                except tk.TclError:
+                    pass
             self._flow_run_btn.configure(text="开始：提取并总结")
-            self._flow_title_lbl.configure(text="提取 → 总结")
             self._flow_info_box.configure(
                 bg=FLOW_SUB_INFO_BG, highlightbackground=FLOW_SUB_INFO_BORDER
             )
             self._flow_info_lbl.configure(
-                text="提示：仅基础总结；深度/画面请切换「多模态」。悬停 ? 看详情。",
+                text="仅基础总结；深度/画面请切换「多模态」。",
                 bg=FLOW_SUB_INFO_BG,
             )
             try:
@@ -2191,381 +2094,250 @@ class App(tk.Tk):
         run_wrap = ttk.Frame(tab_run)
         run_wrap.pack(fill=tk.BOTH, expand=True)
 
-        top = ttk.Frame(run_wrap, padding=(edge, edge, edge, 0))
-        top.pack(fill=tk.X)
+        run_scroll_host = ttk.Frame(run_wrap)
+        run_scroll_host.pack(fill=tk.BOTH, expand=True)
+        run_scroll_host.grid_rowconfigure(0, weight=1)
+        run_scroll_host.grid_columnconfigure(0, weight=1)
+        y_inc_run = max(18, int(round(self._font_content[1] * 2.4)))
+        run_canvas = tk.Canvas(
+            run_scroll_host, highlightthickness=0, borderwidth=0,
+            bg=T_PAGE, yscrollincrement=y_inc_run,
+        )
+        run_vsb = tk.Scrollbar(
+            run_scroll_host, orient=tk.VERTICAL, command=run_canvas.yview,
+            width=self._scrollbar_px, borderwidth=0, troughcolor=SCROLL_TROUGH,
+            bg="#c4c4c4", activebackground="#a8a8a8", highlightthickness=0,
+            relief="flat", jump=1,
+        )
+        run_canvas.configure(yscrollcommand=run_vsb.set)
+        run_canvas.grid(row=0, column=0, sticky="nsew")
+        run_vsb.grid(row=0, column=1, sticky="ns")
 
-        mode_lf = ttk.LabelFrame(top, text=" 分析模式 ", padding=(pad, pad))
-        mode_lf.pack(fill=tk.X, pady=(0, 10))
-        ttk.Radiobutton(
-            mode_lf,
-            text="快速：仅字幕 / 总结",
-            variable=self.flow_mode_var,
-            value="subtitle",
-            command=self._sync_flow_mode_ui,
-        ).pack(anchor=tk.W, pady=(0, 4))
-        ttk.Radiobutton(
-            mode_lf,
-            text="多模态：深度 + 可选画面管线",
-            variable=self.flow_mode_var,
-            value="multimodal",
-            command=self._sync_flow_mode_ui,
-        ).pack(anchor=tk.W)
+        run_inner = tk.Frame(run_canvas, bg=T_PAGE)
+        _run_inner_win = run_canvas.create_window((0, 0), window=run_inner, anchor=tk.NW)
 
-        rep_lf = ttk.LabelFrame(top, text=" 文稿总结 ", padding=(pad, pad))
-        rep_lf.pack(fill=tk.X, pady=(10, 0))
-        rep_chk_row = ttk.Frame(rep_lf)
+        def _run_canvas_on_cfg(event: tk.Event) -> None:
+            w = int(getattr(event, "width", 0) or 0)
+            if w > 1:
+                run_canvas.itemconfigure(_run_inner_win, width=w)
+
+        def _run_inner_on_cfg(_event: object = None) -> None:
+            run_canvas.configure(scrollregion=run_canvas.bbox("all"))
+
+        run_canvas.bind("<Configure>", _run_canvas_on_cfg)
+        run_inner.bind("<Configure>", lambda _e: _run_inner_on_cfg())
+
+        def _run_wheel(event: tk.Event) -> str | None:
+            lines = self._text_wheel_lines
+            d = getattr(event, "delta", 0) or 0
+            if d:
+                steps = int(-d * lines / 120.0)
+                if steps == 0:
+                    steps = -lines if d > 0 else lines
+                if steps:
+                    run_canvas.yview_scroll(steps, "units")
+                return "break"
+            n = getattr(event, "num", 0)
+            if n == 4:
+                run_canvas.yview_scroll(-lines, "units")
+                return "break"
+            if n == 5:
+                run_canvas.yview_scroll(lines, "units")
+                return "break"
+            return None
+
+        def _run_bind_wheel(w: tk.Misc) -> None:
+            w.bind("<MouseWheel>", _run_wheel, add="+")
+            w.bind("<Button-4>", _run_wheel, add="+")
+            w.bind("<Button-5>", _run_wheel, add="+")
+            for c in w.winfo_children():
+                _run_bind_wheel(c)
+
+        top = tk.Frame(run_inner, bg=T_PAGE)
+        top.pack(fill=tk.X, padx=edge, pady=(edge, 0))
+
+        # ── Card 1: 输入源 ──
+        card_input = CollapsibleCard(
+            top, "输入源", initially_open=True,
+            font=(self._font_title[0], self._font_title[1], "bold"),
+        )
+        card_input.pack(fill=tk.X, pady=(0, SPACING_SM))
+        url_row = ttk.Frame(card_input.body)
+        url_row.pack(fill=tk.X, pady=(0, SPACING_SM))
+        url_row.columnconfigure(0, weight=1)
+        self._flow_url_entry = ttk.Entry(url_row, textvariable=self.url_var)
+        self._flow_url_entry.grid(row=0, column=0, sticky="ew", padx=(0, SPACING_SM))
+        self._flow_url_entry.bind("<Return>", lambda _e: self._start_run_from_flow_mode())
+        ttk.Button(url_row, text="浏览…", command=self._browse_media, width=10).grid(
+            row=0, column=1, sticky=tk.E,
+        )
+        whisper_row = ttk.Frame(card_input.body)
+        whisper_row.pack(fill=tk.X, pady=(SPACING_XS, 0))
+        ttk.Label(whisper_row, text="Whisper 模型").pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        self.whisper_combo = ttk.Combobox(
+            whisper_row, textvariable=self.whisper_model_var,
+            values=WHISPER_MODEL_CHOICES, state="readonly", width=14,
+        )
+        self.whisper_combo.pack(side=tk.LEFT, padx=(0, SPACING_MD))
+
+        asr_opts = tk.Frame(card_input.body, bg=T_PANEL)
+        asr_opts.pack(fill=tk.X, pady=(SPACING_SM, 0))
+        asr_row = tk.Frame(asr_opts, bg=T_PANEL, cursor="hand2")
+        asr_row.pack(fill=tk.X)
+        sym_a = tk.Label(asr_row, text="", font=self._font_ui, bg=T_PANEL, fg=T_ACCENT, cursor="hand2")
+        sym_a.pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        self._asr_sym_boxes = [sym_a]
+        asr_caption = tk.Label(
+            asr_row, text="无字幕时用 Whisper 转写", font=self._font_ui,
+            bg=T_PANEL, fg=T_TEXT, cursor="hand2", anchor=tk.W,
+        )
+        asr_caption.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        def _asr_click_u(_event: object = None) -> None:
+            self.asr_if_no_subs_var.set(not self.asr_if_no_subs_var.get())
+        for w in (asr_row, sym_a, asr_caption):
+            w.bind("<Button-1>", _asr_click_u)
+        self.asr_if_no_subs_var.trace_add("write", lambda *_: self._sync_asr_symbol())
+        self._sync_asr_symbol()
+
+        vid_row = tk.Frame(asr_opts, bg=T_PANEL, cursor="hand2")
+        vid_row.pack(fill=tk.X, pady=(SPACING_XS, 0))
+        sym_v = tk.Label(vid_row, text="", font=self._font_ui, bg=T_PANEL, fg=T_ACCENT, cursor="hand2")
+        sym_v.pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        vid_caption = tk.Label(
+            vid_row, text="B 站：下载整片视频（多模态抽帧；关则只要字幕）",
+            font=self._font_ui, bg=T_PANEL, fg=T_TEXT, cursor="hand2", anchor=tk.W,
+        )
+        vid_caption.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        def _vid_click(_event: object = None) -> None:
+            self.download_bilibili_video_var.set(not self.download_bilibili_video_var.get())
+        for w in (vid_row, sym_v, vid_caption):
+            w.bind("<Button-1>", _vid_click)
+
+        def _sync_vid_symbol(*_args: object) -> None:
+            on = self.download_bilibili_video_var.get()
+            sym = "\u2714" if on else "\u25a1"
+            fg = T_ACCENT if on else T_MUTED
+            try:
+                sym_v.configure(text=sym, fg=fg)
+            except tk.TclError:
+                pass
+        self.download_bilibili_video_var.trace_add("write", _sync_vid_symbol)
+        _sync_vid_symbol()
+
+        # ── Card 2: 分析配置 ──
+        card_config = CollapsibleCard(
+            top, "分析配置", initially_open=True,
+            font=(self._font_title[0], self._font_title[1], "bold"),
+        )
+        card_config.pack(fill=tk.X, pady=(0, SPACING_SM))
+
+        seg_row = tk.Frame(card_config.body, bg=T_PANEL)
+        seg_row.pack(fill=tk.X, pady=(0, SPACING_SM))
+        self._seg_btns: dict[str, tk.Label] = {}
+        for val, label in (("subtitle", " 快速 "), ("multimodal", " 多模态 ")):
+            btn = tk.Label(
+                seg_row, text=label, font=self._font_ui,
+                bg=T_RAISED, fg=T_MUTED, cursor="hand2",
+                padx=16, pady=5, relief="flat",
+            )
+            btn.pack(side=tk.LEFT, padx=(0, 2))
+            self._seg_btns[val] = btn
+            btn.bind("<Button-1>", lambda _e, v=val: self._set_flow_mode(v))
+        self._sync_seg_highlight()
+
+        rep_chk_row = ttk.Frame(card_config.body)
         rep_chk_row.pack(fill=tk.X)
         ttk.Checkbutton(
             rep_chk_row,
-            text="用大模型生成「视频内容总结」",
+            text="用大模型生成总结",
             variable=self.flow_transcript_use_llm_var,
             command=self._sync_transcript_llm_source_widgets_state,
         ).pack(side=tk.LEFT, anchor=tk.W)
         tq_rep = ttk.Label(rep_chk_row, text=" ?", foreground=T_MUTED, cursor="hand2")
         tq_rep.pack(side=tk.LEFT, padx=(2, 0))
         _attach_tooltip(tq_rep, lambda: FLOW_REP_TIP_CHECK, wraplength=400)
-        src_fr = ttk.Frame(rep_lf)
-        src_fr.pack(fill=tk.X, pady=(6, 0))
-        r_api = ttk.Frame(src_fr)
-        r_api.pack(fill=tk.X)
+        src_fr = ttk.Frame(card_config.body)
+        src_fr.pack(fill=tk.X, pady=(SPACING_XS, 0))
         rb_api = ttk.Radiobutton(
-            r_api,
-            text="提供方：在线（「API 与模型」）",
-            variable=self.flow_transcript_llm_source_var,
+            src_fr, text="在线 API", variable=self.flow_transcript_llm_source_var,
             value="api_preferred",
         )
-        rb_api.pack(side=tk.LEFT, anchor=tk.W)
-        tq_api = ttk.Label(r_api, text=" ?", foreground=T_MUTED, cursor="hand2")
-        tq_api.pack(side=tk.LEFT, padx=(2, 0))
-        _attach_tooltip(tq_api, lambda: FLOW_REP_TIP_API, wraplength=400)
-        r_loc = ttk.Frame(src_fr)
-        r_loc.pack(fill=tk.X, pady=(4, 0))
+        rb_api.pack(side=tk.LEFT, padx=(0, SPACING_MD))
         rb_local = ttk.Radiobutton(
-            r_loc,
-            text="提供方：本地（与③同源）",
-            variable=self.flow_transcript_llm_source_var,
+            src_fr, text="本地（与③同源）", variable=self.flow_transcript_llm_source_var,
             value="same_as_vlm",
         )
-        rb_local.pack(side=tk.LEFT, anchor=tk.W)
-        tq_loc = ttk.Label(r_loc, text=" ?", foreground=T_MUTED, cursor="hand2")
-        tq_loc.pack(side=tk.LEFT, padx=(2, 0))
-        _attach_tooltip(tq_loc, lambda: FLOW_REP_TIP_LOCAL, wraplength=400)
+        rb_local.pack(side=tk.LEFT)
         self._transcript_llm_source_widgets = (rb_api, rb_local)
         self._sync_transcript_llm_source_widgets_state()
 
-        uhead = tk.Frame(top, bg=T_PAGE)
-        uhead.pack(fill=tk.X, pady=(0, 4))
-        title_row = tk.Frame(uhead, bg=T_PAGE)
-        title_row.pack(fill=tk.X, anchor=tk.W)
-        self._flow_title_lbl = tk.Label(
-            title_row,
-            text="智能提取 → 大模型总结",
-            font=self._font_title,
-            bg=T_PAGE,
-            fg=T_TEXT,
-        )
-        self._flow_title_lbl.pack(side=tk.LEFT, anchor=tk.W)
-        tq_mode = tk.Label(
-            title_row,
-            text=" ?",
-            font=hint_small,
-            bg=T_PAGE,
-            fg=T_MUTED,
-            cursor="hand2",
-        )
-        tq_mode.pack(side=tk.LEFT, anchor=tk.W, padx=(4, 0))
-        _attach_tooltip(tq_mode, lambda: FLOW_MODE_HELP, wraplength=400)
-
         self._flow_info_box = tk.Frame(
-            uhead,
+            card_config.body,
             bg=FLOW_SUB_INFO_BG,
             highlightbackground=FLOW_SUB_INFO_BORDER,
             highlightthickness=1,
         )
-        self._flow_info_box.pack(fill=tk.X, pady=(6, 0))
+        self._flow_info_box.pack(fill=tk.X, pady=(SPACING_SM, 0))
         self._flow_info_inner = tk.Frame(self._flow_info_box, bg=FLOW_SUB_INFO_BG)
-        self._flow_info_inner.pack(fill=tk.X, padx=10, pady=6)
+        self._flow_info_inner.pack(fill=tk.X, padx=SPACING_SM, pady=SPACING_XS)
         self._flow_info_lbl = tk.Label(
-            self._flow_info_inner,
-            text="",
-            bg=FLOW_SUB_INFO_BG,
-            fg=T_TEXT,
-            font=hint_small,
-            wraplength=max(380, int(720 * self._geom_scale) - 48),
-            justify=tk.LEFT,
-            anchor=tk.NW,
+            self._flow_info_inner, text="", bg=FLOW_SUB_INFO_BG, fg=T_TEXT,
+            font=hint_small, wraplength=max(380, int(720 * self._geom_scale) - 48),
+            justify=tk.LEFT, anchor=tk.NW,
         )
         self._flow_info_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True, anchor=tk.NW)
         self._flow_info_tip_lbl = tk.Label(
-            self._flow_info_inner,
-            text="?",
-            font=hint_small,
-            bg=FLOW_SUB_INFO_BG,
-            fg=FLOW_SUB_MUTED,
-            cursor="hand2",
+            self._flow_info_inner, text="?", font=hint_small,
+            bg=FLOW_SUB_INFO_BG, fg=FLOW_SUB_MUTED, cursor="hand2",
         )
         self._flow_info_tip_lbl.pack(side=tk.LEFT, anchor=tk.N, padx=(6, 0))
-        _attach_tooltip(
-            self._flow_info_tip_lbl, self._flow_info_tooltip_text, wraplength=440
-        )
+        _attach_tooltip(self._flow_info_tip_lbl, self._flow_info_tooltip_text, wraplength=440)
+        self._flow_title_lbl = tk.Label(card_config.body)
 
+        # ── Card 3: 本地推理服务 ──
+        card_infer = CollapsibleCard(
+            top, "本地推理服务", initially_open=False,
+            font=(self._font_title[0], self._font_title[1], "bold"),
+        )
+        card_infer.pack(fill=tk.X, pady=(0, SPACING_SM))
         LocalInferenceFlowBar(
-            top,
-            self._local_chat_hub._infer,
-            self,
-            pad=pad,
-        ).pack(fill=tk.X, pady=(12, 0))
+            card_infer.body, self._local_chat_hub._infer, self, pad=pad,
+        ).pack(fill=tk.X)
 
-        url_card = ttk.LabelFrame(top, text=" 链接或本地音视频 ", padding=pad)
-        url_card.pack(fill=tk.X, pady=(14, 0))
-        url_row = ttk.Frame(url_card)
-        url_row.pack(fill=tk.X)
-        url_row.columnconfigure(0, weight=1)
-        self._flow_url_entry = ttk.Entry(url_row, textvariable=self.url_var)
-        self._flow_url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self._flow_url_entry.bind("<Return>", lambda _e: self._start_run_from_flow_mode())
-        ttk.Button(url_row, text="浏览…", command=self._browse_media, width=10).grid(
-            row=0, column=1, sticky=tk.E
+        # ── Card 4: 画面管线详细设置 (collapsed, multimodal only) ──
+        self._card_pipeline = CollapsibleCard(
+            top, "画面管线详细设置", initially_open=False,
+            font=(self._font_title[0], self._font_title[1], "bold"),
         )
-        model_row = ttk.Frame(top)
-        model_row.pack(fill=tk.X, pady=(12, 0))
-        ttk.Label(model_row, text="Whisper 模型").pack(side=tk.LEFT, padx=(0, 8))
-        self.whisper_combo = ttk.Combobox(
-            model_row,
-            textvariable=self.whisper_model_var,
-            values=WHISPER_MODEL_CHOICES,
-            state="readonly",
-            width=14,
-        )
-        self.whisper_combo.pack(side=tk.LEFT, padx=(0, 10))
+        self._card_pipeline.pack(fill=tk.X, pady=(0, SPACING_SM))
+        pipe = self._card_pipeline.body
 
-        uopt = ttk.Frame(top)
-        uopt.pack(fill=tk.X, pady=(10, 0))
-        asr_row = tk.Frame(uopt, bg=T_SURFACE, cursor="hand2")
-        asr_row.pack(fill=tk.X)
-        sym_a = tk.Label(
-            asr_row,
-            text="",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_ACCENT,
-            cursor="hand2",
-        )
-        sym_a.pack(side=tk.LEFT, padx=(0, 8))
-        self._asr_sym_boxes = [sym_a]
-        asr_caption = tk.Label(
-            asr_row,
-            text="无字幕时用 Whisper 转写",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_TEXT,
-            cursor="hand2",
-            anchor=tk.W,
-        )
-        asr_caption.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        def _asr_click_u(_event: object = None) -> None:
-            self.asr_if_no_subs_var.set(not self.asr_if_no_subs_var.get())
-
-        for w in (asr_row, sym_a, asr_caption):
-            w.bind("<Button-1>", _asr_click_u)
-        self.asr_if_no_subs_var.trace_add("write", lambda *_: self._sync_asr_symbol())
-        self._sync_asr_symbol()
-
-        vid_row = tk.Frame(uopt, bg=T_SURFACE, cursor="hand2")
-        vid_row.pack(fill=tk.X, pady=(6, 0))
-        sym_v = tk.Label(
-            vid_row,
-            text="",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_ACCENT,
-            cursor="hand2",
-        )
-        sym_v.pack(side=tk.LEFT, padx=(0, 8))
-        vid_caption = tk.Label(
-            vid_row,
-            text="B 站：下载整片视频（多模态抽帧；关则只要字幕）",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_TEXT,
-            cursor="hand2",
-            anchor=tk.W,
-        )
-        vid_caption.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        def _vid_click(_event: object = None) -> None:
-            self.download_bilibili_video_var.set(
-                not self.download_bilibili_video_var.get()
-            )
-
-        for w in (vid_row, sym_v, vid_caption):
-            w.bind("<Button-1>", _vid_click)
-
-        def _sync_vid_symbol(*_args: object) -> None:
-            on = self.download_bilibili_video_var.get()
-            sym = "✔" if on else "□"
-            fg = T_ACCENT if on else T_MUTED
-            try:
-                sym_v.configure(text=sym, fg=fg)
-            except tk.TclError:
-                pass
-
-        self.download_bilibili_video_var.trace_add("write", _sync_vid_symbol)
-        _sync_vid_symbol()
-
-        bottom = tk.Frame(run_wrap, bg=T_PAGE)
-        bottom.pack(side=tk.BOTTOM, fill=tk.X, padx=edge, pady=(0, edge))
-        act = tk.Frame(bottom, bg=T_PAGE)
-        act.pack(fill=tk.X, pady=(0, 6))
-        self._flow_run_btn = ttk.Button(
-            act,
-            text="开始：提取并生成总结",
-            command=self._start_run_from_flow_mode,
-            style=self._run_button_style,
-        )
-        self._flow_run_btn.pack(side=tk.LEFT, padx=(0, 10))
-        self._flow_cancel_btn = ttk.Button(
-            act,
-            text="停止当前任务",
-            command=self.cancel_pipeline_run,
-            style=sec_style,
-            state=tk.DISABLED,
-        )
-        self._flow_cancel_btn.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(
-            act,
-            text="看日志",
-            command=lambda: self._focus_workspace_tab("log"),
-            style=sec_style,
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Button(
-            act,
-            text="看合并",
-            command=lambda: self._focus_workspace_tab("merged"),
-            style=sec_style,
-        ).pack(side=tk.LEFT)
-        self._flow_status = ttk.Label(bottom, text="就绪", anchor=tk.W)
-        self._flow_status.pack(fill=tk.X, pady=(0, 2))
-
-        self._flow_multimodal_scroll = ttk.Frame(run_wrap)
-        mm_host = self._flow_multimodal_scroll
-        mm_host.grid_rowconfigure(0, weight=1)
-        mm_host.grid_columnconfigure(0, weight=1)
-        y_inc = max(18, int(round(self._font_content[1] * 2.4)))
-        ff_canvas = tk.Canvas(
-            mm_host,
-            highlightthickness=0,
-            borderwidth=0,
-            bg=T_PAGE,
-            yscrollincrement=y_inc,
-        )
-        ff_vsb = tk.Scrollbar(
-            mm_host,
-            orient=tk.VERTICAL,
-            command=ff_canvas.yview,
-            width=self._scrollbar_px,
-            borderwidth=0,
-            troughcolor=SCROLL_TROUGH,
-            bg="#c4c4c4",
-            activebackground="#a8a8a8",
-            highlightthickness=0,
-            relief="flat",
-            jump=1,
-        )
-        ff_canvas.configure(yscrollcommand=ff_vsb.set)
-        ff_canvas.grid(row=0, column=0, sticky="nsew")
-        ff_vsb.grid(row=0, column=1, sticky="ns")
-
-        inner = tk.Frame(ff_canvas, bg=T_PAGE)
-        _ff_inner_win = ff_canvas.create_window((0, 0), window=inner, anchor=tk.NW)
-
-        def _ff_canvas_on_cfg(event: tk.Event) -> None:
-            w = int(getattr(event, "width", 0) or 0)
-            if w > 1:
-                ff_canvas.itemconfigure(_ff_inner_win, width=w)
-
-        def _ff_inner_on_cfg(_event: object | None = None) -> None:
-            ff_canvas.configure(scrollregion=ff_canvas.bbox("all"))
-
-        ff_canvas.bind("<Configure>", _ff_canvas_on_cfg)
-        inner.bind("<Configure>", lambda _e: _ff_inner_on_cfg())
-
-        def _ff_wheel(event: tk.Event) -> str | None:
-            lines = self._text_wheel_lines
-            d = getattr(event, "delta", 0) or 0
-            if d:
-                if sys.platform == "win32":
-                    steps = int(-d * lines / 120.0)
-                    if steps == 0:
-                        steps = -lines if d > 0 else lines
-                else:
-                    steps = int(-d * lines / 120.0)
-                    if steps == 0:
-                        steps = -lines if d > 0 else lines
-                if steps:
-                    ff_canvas.yview_scroll(steps, "units")
-                return "break"
-            n = getattr(event, "num", 0)
-            if n == 4:
-                ff_canvas.yview_scroll(-lines, "units")
-                return "break"
-            if n == 5:
-                ff_canvas.yview_scroll(lines, "units")
-                return "break"
-            return None
-
-        def _ff_bind_wheel(w: tk.Misc) -> None:
-            w.bind("<MouseWheel>", _ff_wheel, add="+")
-            w.bind("<Button-4>", _ff_wheel, add="+")
-            w.bind("<Button-5>", _ff_wheel, add="+")
-            for c in w.winfo_children():
-                _ff_bind_wheel(c)
-
-        mm_opt = ttk.Frame(inner)
-        mm_opt.pack(fill=tk.X, padx=edge, pady=(0, edge))
-
-        force_row = tk.Frame(mm_opt, bg=T_SURFACE, cursor="hand2")
-        force_row.pack(fill=tk.X)
+        force_row = tk.Frame(pipe, bg=T_PANEL, cursor="hand2")
+        force_row.pack(fill=tk.X, pady=(0, SPACING_SM))
         self._asr_force_sym = tk.Label(
-            force_row,
-            text="",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_ACCENT,
-            cursor="hand2",
+            force_row, text="", font=self._font_ui,
+            bg=T_PANEL, fg=T_ACCENT, cursor="hand2",
         )
-        self._asr_force_sym.pack(side=tk.LEFT, padx=(0, 8))
+        self._asr_force_sym.pack(side=tk.LEFT, padx=(0, SPACING_SM))
         force_cap = tk.Label(
-            force_row,
-            text="有字幕也强制 Whisper（更慢）",
-            font=self._font_ui,
-            bg=T_SURFACE,
-            fg=T_TEXT,
-            cursor="hand2",
-            anchor=tk.W,
+            force_row, text="有字幕也强制 Whisper（更慢）",
+            font=self._font_ui, bg=T_PANEL, fg=T_TEXT,
+            cursor="hand2", anchor=tk.W,
         )
         force_cap.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         def _force_click(_event: object = None) -> None:
             self.asr_force_var.set(not self.asr_force_var.get())
-
         for w in (force_row, self._asr_force_sym, force_cap):
             w.bind("<Button-1>", _force_click)
         self.asr_force_var.trace_add("write", lambda *_: self._sync_asr_force_symbol())
         self._sync_asr_force_symbol()
 
-        pipe = ttk.LabelFrame(
-            inner,
-            text=" 画面管线（①–⑤） ",
-            padding=pad,
-        )
-        pipe.pack(fill=tk.X, pady=(14, 0))
         ttk.Checkbutton(
-            pipe,
-            text="启用画面管线",
-            variable=self.vision_enable_var,
-        ).pack(anchor=tk.W, pady=(0, 6))
+            pipe, text="启用画面管线", variable=self.vision_enable_var,
+        ).pack(anchor=tk.W, pady=(0, SPACING_SM))
         vm_fr = ttk.Frame(pipe)
         vm_fr.pack(fill=tk.X, pady=(0, 8))
         ttk.Label(vm_fr, text="观看密度").pack(side=tk.LEFT, padx=(0, 8))
@@ -2585,8 +2357,8 @@ class App(tk.Tk):
         tq_vm.pack(side=tk.LEFT, padx=(2, 0))
         _attach_tooltip(tq_vm, lambda: FLOW_VIEW_MODE_HELP, wraplength=420)
 
-        s1 = ttk.LabelFrame(pipe, text=" ① 抽帧 / 去重 ", padding=(pad, 6))
-        s1.pack(fill=tk.X, pady=(0, 8))
+        s1 = ttk.LabelFrame(pipe, text=" ① 抽帧 / 去重 ", padding=(pad, SPACING_XS))
+        s1.pack(fill=tk.X, pady=(0, SPACING_SM))
         ttk.Checkbutton(
             s1,
             text="按间隔 FFmpeg 抽帧",
@@ -2629,8 +2401,8 @@ class App(tk.Tk):
             width=5,
         ).pack(side=tk.LEFT)
 
-        s2 = ttk.LabelFrame(pipe, text=" ② OCR（PaddleOCR） ", padding=(pad, 6))
-        s2.pack(fill=tk.X, pady=(0, 8))
+        s2 = ttk.LabelFrame(pipe, text=" ② OCR（PaddleOCR） ", padding=(pad, SPACING_XS))
+        s2.pack(fill=tk.X, pady=(0, SPACING_SM))
         ttk.Checkbutton(s2, text="启用 OCR", variable=self.vision_ocr_var).pack(anchor=tk.W)
         ttk.Checkbutton(
             s2,
@@ -2658,8 +2430,8 @@ class App(tk.Tk):
             width=5,
         ).pack(side=tk.LEFT)
 
-        s3 = ttk.LabelFrame(pipe, text=" ③ Gemma 看图（OpenAI 兼容，一句描述） ", padding=(pad, 6))
-        s3.pack(fill=tk.X, pady=(0, 8))
+        s3 = ttk.LabelFrame(pipe, text=" ③ Gemma 看图（OpenAI 兼容） ", padding=(pad, SPACING_XS))
+        s3.pack(fill=tk.X, pady=(0, SPACING_SM))
         ttk.Checkbutton(
             s3,
             text="稀疏关键帧：每帧一句画面描述（与下方 URL/模型一致）",
@@ -2685,8 +2457,8 @@ class App(tk.Tk):
             state="readonly",
             width=8,
         ).pack(side=tk.LEFT)
-        s4 = ttk.LabelFrame(pipe, text=" ④ 视频类型 ", padding=(pad, 6))
-        s4.pack(fill=tk.X, pady=(0, 8))
+        s4 = ttk.LabelFrame(pipe, text=" ④ 视频类型 ", padding=(pad, SPACING_XS))
+        s4.pack(fill=tk.X, pady=(0, SPACING_SM))
         vt_row = ttk.Frame(s4)
         vt_row.pack(fill=tk.X)
         ttk.Label(vt_row, text="类型").pack(side=tk.LEFT, padx=(0, 8))
@@ -2697,8 +2469,8 @@ class App(tk.Tk):
             state="readonly",
             width=12,
         ).pack(side=tk.LEFT)
-        s5 = ttk.LabelFrame(pipe, text=" ⑤ 输出 ", padding=(pad, 6))
-        s5.pack(fill=tk.X, pady=(0, 8))
+        s5 = ttk.LabelFrame(pipe, text=" ⑤ 输出 ", padding=(pad, SPACING_XS))
+        s5.pack(fill=tk.X, pady=(0, SPACING_SM))
         out_row = ttk.Frame(s5)
         out_row.pack(fill=tk.X)
         ttk.Checkbutton(out_row, text="video_analysis_deep.md", variable=self.vision_out_md_var).pack(
@@ -2722,8 +2494,40 @@ class App(tk.Tk):
             state="readonly",
             width=10,
         ).pack(side=tk.LEFT)
-        _ff_bind_wheel(inner)
-        self.after(100, lambda: _ff_bind_wheel(inner))
+        _run_bind_wheel(run_inner)
+        self.after(100, lambda: _run_bind_wheel(run_inner))
+
+        # ── Sticky bottom bar ──
+        bottom = tk.Frame(run_wrap, bg=T_PAGE)
+        bottom.pack(side=tk.BOTTOM, fill=tk.X, padx=edge, pady=(0, edge))
+        ttk.Separator(bottom, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, SPACING_SM))
+        act = tk.Frame(bottom, bg=T_PAGE)
+        act.pack(fill=tk.X, pady=(0, SPACING_XS))
+        self._flow_run_btn = ttk.Button(
+            act, text="开始：提取并生成总结",
+            command=self._start_run_from_flow_mode,
+            style=self._run_button_style,
+        )
+        self._flow_run_btn.pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        self._flow_cancel_btn = ttk.Button(
+            act, text="停止", command=self.cancel_pipeline_run,
+            style=sec_style, state=tk.DISABLED,
+        )
+        self._flow_cancel_btn.pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        ttk.Button(
+            act, text="看日志",
+            command=lambda: self._focus_workspace_tab("log"),
+            style=sec_style,
+        ).pack(side=tk.LEFT, padx=(0, SPACING_SM))
+        ttk.Button(
+            act, text="看合并",
+            command=lambda: self._focus_workspace_tab("merged"),
+            style=sec_style,
+        ).pack(side=tk.LEFT)
+        self._flow_status = ttk.Label(bottom, text="就绪", anchor=tk.W)
+        self._flow_status.pack(fill=tk.X, pady=(0, 2))
+
+        self._flow_multimodal_scroll = self._card_pipeline
 
         rc_paned_f = ttk.Panedwindow(tab_report_chat, orient=tk.VERTICAL)
         rc_paned_f.pack(fill=tk.BOTH, expand=True)
@@ -2890,7 +2694,8 @@ class App(tk.Tk):
                 foreground=T_TEXT,
                 borderwidth=1,
                 relief="solid",
-                bordercolor=T_BORDER,
+                bordercolor=CARD_BORDER,
+                padding=(SPACING_MD, SPACING_SM),
             )
             style.configure(
                 "TLabelframe.Label",
@@ -2924,7 +2729,7 @@ class App(tk.Tk):
                 ],
                 foreground=[("selected", T_TEXT)],
             )
-            style.configure("TEntry", fieldbackground=T_ENTRY, foreground=T_TEXT, bordercolor=T_BORDER)
+            style.configure("TEntry", fieldbackground=T_ENTRY, foreground=T_TEXT, bordercolor=CARD_BORDER)
             style.configure("TSeparator", background=T_BORDER)
             style.configure(
                 "TButton",
@@ -2933,12 +2738,19 @@ class App(tk.Tk):
                 foreground=T_TEXT,
                 borderwidth=1,
                 relief="flat",
-                padding=(10, 5),
+                focuscolor=T_ACCENT,
+                padding=(14, 6),
             )
             style.map(
                 "TButton",
                 background=[("active", T_BORDER), ("disabled", T_RAISED)],
                 foreground=[("disabled", T_MUTED)],
+            )
+            style.configure(
+                "Card.TFrame",
+                background=T_PANEL,
+                borderwidth=1,
+                relief="solid",
             )
         except tk.TclError:
             pass
@@ -2957,10 +2769,10 @@ class App(tk.Tk):
         except tk.TclError:
             pass
 
-        tab_pad_x = max(10, int(round(10 * fs)))
-        tab_pad_y = max(4, int(round(5 * fs)))
-        sticky_pad_x = max(10, int(round(11 * fs)))
-        sticky_pad_y = max(5, int(round(6 * fs)))
+        tab_pad_x = max(14, int(round(14 * fs)))
+        tab_pad_y = max(5, int(round(6 * fs)))
+        sticky_pad_x = max(14, int(round(14 * fs)))
+        sticky_pad_y = max(6, int(round(7 * fs)))
         try:
             style.configure("TNotebook.Tab", padding=[tab_pad_x, tab_pad_y])
             style.configure(
@@ -2979,7 +2791,7 @@ class App(tk.Tk):
                 background=T_ACCENT,
                 borderwidth=0,
                 focusthickness=3,
-                focuscolor="none",
+                focuscolor=T_ACCENT,
                 padding=(btn_pad_x, btn_pad_y),
             )
             style.map(
@@ -4369,15 +4181,12 @@ class LocalChatHub(ttk.Frame):
         pv.add(settings_pane, weight=0)
         pv.add(chat_stack, weight=1)
 
-        settings_card = tk.Frame(
-            settings_pane,
-            bg=T_PANEL,
-            highlightbackground=T_BORDER,
-            highlightthickness=1,
+        settings_card = CollapsibleCard(
+            settings_pane, "对话设置", initially_open=False,
+            font=(app._font_title[0], app._font_title[1], "bold"),
         )
-        settings_card.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
-        settings_inner = tk.Frame(settings_card, bg=T_PANEL)
-        settings_inner.pack(fill=tk.BOTH, expand=True, padx=14, pady=12)
+        settings_card.pack(fill=tk.BOTH, expand=False, pady=(0, SPACING_SM))
+        settings_inner = settings_card.body
 
         tk.Label(
             left,
@@ -4532,12 +4341,12 @@ class LocalChatHub(ttk.Frame):
         self._composer = tk.Frame(
             comp_outer,
             bg=T_PANEL,
-            highlightbackground=T_BORDER,
+            highlightbackground=CARD_BORDER,
             highlightthickness=1,
         )
-        self._composer.pack(fill=tk.X, ipadx=6, ipady=6)
+        self._composer.pack(fill=tk.X, ipadx=SPACING_SM, ipady=SPACING_SM)
         inp_host = tk.Frame(self._composer, bg=COMPOSER_INPUT_BG)
-        inp_host.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8, 0))
+        inp_host.pack(fill=tk.BOTH, expand=True, padx=SPACING_SM, pady=(SPACING_SM, 0))
         top_c = tk.Frame(inp_host, bg=COMPOSER_INPUT_BG)
         top_c.pack(fill=tk.BOTH, expand=True)
         ttk.Button(top_c, text="＋", width=3, command=self._pick_images).pack(
@@ -4990,55 +4799,46 @@ class LocalChatHub(ttk.Frame):
     def _add_user_bubble(self, text: str, img_names: list[str]) -> None:
         z = T_SURFACE
         row = tk.Frame(self._msgs, bg=z)
-        row.pack(fill=tk.X, pady=(10, 2))
+        row.pack(fill=tk.X, pady=(SPACING_SM, 2))
         ts = datetime.now().strftime("%H:%M")
         meta = tk.Frame(row, bg=z)
-        meta.pack(fill=tk.X, padx=(0, 12))
+        meta.pack(fill=tk.X, padx=(0, SPACING_MD))
         tk.Label(
-            meta,
-            text=f"You  ·  {ts}",
-            font=self._font_small,
-            bg=z,
-            fg=A_META,
+            meta, text=f"You  \u00b7  {ts}", font=self._font_small,
+            bg=z, fg=A_META,
         ).pack(side=tk.RIGHT)
-        bubble = tk.Frame(row, bg=A_USER)
-        bubble.pack(anchor=tk.E, padx=(40, 8), pady=(2, 4))
+        bubble = tk.Frame(row, bg=A_USER, highlightbackground="#bfdbfe", highlightthickness=1)
+        bubble.pack(anchor=tk.E, padx=(60, SPACING_SM), pady=(2, SPACING_XS))
         cw = max(280, self._chat_canvas.winfo_width() or 320)
         wu, _ = self._bubble_dims(cw)
         body = self._bubble_text(bubble, text, bg=A_USER, wrap_px=wu)
-        body.pack(padx=12, pady=10, anchor=tk.W)
+        body.pack(padx=SPACING_MD, pady=SPACING_SM, anchor=tk.W)
         self._wrap_labels.append((body, "user"))
         if img_names:
             tk.Label(
                 bubble,
-                text="📎 " + "、".join(img_names[:6])
-                + (" …" if len(img_names) > 6 else ""),
-                font=self._font_small,
-                bg=A_USER,
-                fg=A_META,
-                anchor=tk.W,
-            ).pack(anchor=tk.W, padx=12, pady=(0, 8))
+                text="\U0001f4ce " + "\u3001".join(img_names[:6])
+                + (" \u2026" if len(img_names) > 6 else ""),
+                font=self._font_small, bg=A_USER, fg=A_META, anchor=tk.W,
+            ).pack(anchor=tk.W, padx=SPACING_MD, pady=(0, SPACING_SM))
         self._scroll_bottom()
 
     def _add_assistant_bubble(self, text: str, *, error: bool = False) -> None:
         z = T_SURFACE
         row = tk.Frame(self._msgs, bg=z)
-        row.pack(fill=tk.X, pady=(10, 2))
+        row.pack(fill=tk.X, pady=(SPACING_SM, 2))
         tk.Label(
-            row,
-            text="Assistant",
-            font=self._font_small,
-            bg=z,
-            fg=A_META,
-        ).pack(anchor=tk.W, padx=(8, 0))
+            row, text="Assistant", font=self._font_small,
+            bg=z, fg=A_META,
+        ).pack(anchor=tk.W, padx=(SPACING_SM, 0))
         bg = A_ERR if error else A_CARD
-        border = "#fecaca" if error else A_CARD_BORDER
+        border = "#fecaca" if error else CARD_BORDER
         card = tk.Frame(row, bg=bg, highlightbackground=border, highlightthickness=1)
-        card.pack(anchor=tk.W, padx=(8, 12), pady=(4, 6), fill=tk.X)
+        card.pack(anchor=tk.W, padx=(SPACING_SM, 60), pady=(SPACING_XS, SPACING_SM), fill=tk.X)
         cw = max(280, self._chat_canvas.winfo_width() or 320)
         _, wa = self._bubble_dims(cw)
         body = self._bubble_text(card, text, bg=bg, wrap_px=wa)
-        body.pack(padx=14, pady=12, anchor=tk.W, fill=tk.X)
+        body.pack(padx=SPACING_LG, pady=SPACING_MD, anchor=tk.W, fill=tk.X)
         self._wrap_labels.append((body, "assistant"))
         self._scroll_bottom()
 
@@ -5879,26 +5679,23 @@ class AgentChatPanel(tk.Frame):
     def _add_user_bubble(self, text: str) -> None:
         z = self._chat_zone_bg
         row = tk.Frame(self._msgs, bg=z)
-        row.pack(fill=tk.X, pady=(10, 2))
+        row.pack(fill=tk.X, pady=(SPACING_SM, 2))
         meta = tk.Frame(row, bg=z)
-        meta.pack(fill=tk.X, padx=(0, 12))
+        meta.pack(fill=tk.X, padx=(0, SPACING_MD))
         ts = datetime.now().strftime("%H:%M")
         tk.Label(
-            meta,
-            text=f"You  ·  {ts}",
-            font=self._font_small,
-            bg=z,
-            fg=A_META,
+            meta, text=f"You  \u00b7  {ts}", font=self._font_small,
+            bg=z, fg=A_META,
         ).pack(side=tk.RIGHT)
 
-        bubble = tk.Frame(row, bg=A_USER)
-        bubble.pack(anchor=tk.E, padx=(40, 8), pady=(2, 4))
+        bubble = tk.Frame(row, bg=A_USER, highlightbackground="#bfdbfe", highlightthickness=1)
+        bubble.pack(anchor=tk.E, padx=(60, SPACING_SM), pady=(2, SPACING_XS))
         cw = max(280, self._chat_canvas.winfo_width() or 320)
         wu, _ = self._bubble_wraps(cw)
         body = self._make_bubble_text(
             bubble, text, bg=A_USER, fg=A_TEXT, wrap_px=wu
         )
-        body.pack(padx=12, pady=10, anchor=tk.W)
+        body.pack(padx=SPACING_MD, pady=SPACING_SM, anchor=tk.W)
         self._wrap_labels.append((body, "user"))
         self._wire_bubble_wheel(row)
         self._scroll_chat_bottom()
@@ -5913,25 +5710,22 @@ class AgentChatPanel(tk.Frame):
     ) -> None:
         z = self._chat_zone_bg
         row = tk.Frame(self._msgs, bg=z)
-        row.pack(fill=tk.X, pady=(10, 2))
+        row.pack(fill=tk.X, pady=(SPACING_SM, 2))
         head = tk.Label(
-            row,
-            text=subtitle,
-            font=self._font_small,
-            bg=z,
-            fg=A_META if muted else "#374151",
+            row, text=subtitle, font=self._font_small,
+            bg=z, fg=A_META if muted else "#374151",
         )
-        head.pack(anchor=tk.W, padx=(8, 0))
+        head.pack(anchor=tk.W, padx=(SPACING_SM, 0))
         bg = A_ERR if error else A_CARD
-        border = "#fecaca" if error else A_CARD_BORDER
+        border = "#fecaca" if error else CARD_BORDER
         card = tk.Frame(row, bg=bg, highlightbackground=border, highlightthickness=1)
-        card.pack(anchor=tk.W, padx=(8, 12), pady=(4, 6), fill=tk.X)
+        card.pack(anchor=tk.W, padx=(SPACING_SM, 60), pady=(SPACING_XS, SPACING_SM), fill=tk.X)
         cw = max(280, self._chat_canvas.winfo_width() or 320)
         _, wa = self._bubble_wraps(cw)
         body = self._make_bubble_text(
             card, text, bg=bg, fg=A_TEXT, wrap_px=wa
         )
-        body.pack(padx=14, pady=12, anchor=tk.W, fill=tk.X)
+        body.pack(padx=SPACING_LG, pady=SPACING_MD, anchor=tk.W, fill=tk.X)
         self._wrap_labels.append((body, "assistant"))
         self._wire_bubble_wheel(row)
         self._scroll_chat_bottom()

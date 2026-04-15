@@ -1,5 +1,6 @@
 # Runtime / secrets
 out/
+.credentials/
 browser_state.json
 cookies.txt
 local_api_keys.py
@@ -31,6 +32,9 @@ ffmpeg/*.dll
 # Local serve debug logs
 serve_out.log
 serve_err.log
+
+# IDE / editor
+.cursor/
 
 # Archives / OS
 *.zip
