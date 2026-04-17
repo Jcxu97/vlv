@@ -229,7 +229,12 @@ def download_audio(
         cmd.extend(["--cookies", str(cookies)])
     cmd.append(url)
     print("运行:", " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True, timeout=1800)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"yt-dlp 下载超时（30 分钟未返回）：{url}；可能网络缓慢或被墙，已中止。"
+        ) from e
     paths = sorted(out_dir.glob("*_audio.m4a"))
     if not paths:
         paths = sorted(out_dir.glob("*_audio.*"))
@@ -278,7 +283,12 @@ def extract_audio_from_video(
         str(out),
     ]
     print("运行:", " ".join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True, timeout=1800)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"ffmpeg 抽音超时（30 分钟未返回）：{video_path}；已中止以免挂住主流程。"
+        ) from e
     return out
 
 

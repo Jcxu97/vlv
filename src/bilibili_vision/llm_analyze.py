@@ -242,19 +242,10 @@ def _user_prompt(merged: str, truncated: bool) -> str:
     )
 
 
-def _openai_compatible_timeout_sec(base_url: str) -> int:
-    """本地大模型首包慢，对 127.0.0.1/localhost 默认放宽；可用 LLM_HTTP_TIMEOUT_SEC 覆盖。"""
-    raw = os.environ.get("LLM_HTTP_TIMEOUT_SEC", "").strip()
-    if raw:
-        try:
-            t = int(raw)
-            return max(30, min(t, 7200))
-        except ValueError:
-            pass
-    low = base_url.lower()
-    if "127.0.0.1" in low or "localhost" in low:
-        return 900
-    return 120
+from bilibili_vision.llm_timeouts import (  # noqa: E402 — 共享超时策略
+    deep_http_timeout_sec as _deep_http_timeout_sec,
+    http_timeout_sec as _openai_compatible_timeout_sec,
+)
 
 
 def _friendly_urlopen_err(url: str, err: BaseException) -> str:
@@ -467,7 +458,13 @@ SYSTEM_CHAT_ZH = (
 )
 
 
-def _gemini_generate(api_key: str, system: str, user: str) -> tuple[str, str]:
+def _gemini_generate(
+    api_key: str,
+    system: str,
+    user: str,
+    *,
+    timeout: int | None = None,
+) -> tuple[str, str]:
     """返回 (正文, 模型名)。"""
     models_try = _gemini_default_models()
     last_err: str | None = None
@@ -476,6 +473,7 @@ def _gemini_generate(api_key: str, system: str, user: str) -> tuple[str, str]:
         "maxOutputTokens": 8192,
     }
     gemini_headers = {"x-goog-api-key": api_key}
+    to = int(timeout) if timeout and timeout > 0 else 120
     for api_ver in ("v1beta", "v1"):
         for model in models_try:
             url = (
@@ -495,7 +493,7 @@ def _gemini_generate(api_key: str, system: str, user: str) -> tuple[str, str]:
                     "generationConfig": gen_cfg,
                 }
             try:
-                out = _http_post_json(url, payload, gemini_headers, timeout=120)
+                out = _http_post_json(url, payload, gemini_headers, timeout=to)
             except urllib.error.HTTPError as e:
                 try:
                     body = e.read().decode("utf-8", errors="replace")
@@ -547,6 +545,7 @@ def _gemini_multiturn(
     *,
     attach_vision_current: bool,
     vision_paths: list[Path] | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     """prior 每项 (user, model, 该轮是否附图)；仅当对应标志为真时把 vision_paths 附在该轮 user 上。"""
     imgs0 = list(vision_paths or [])
@@ -588,7 +587,10 @@ def _gemini_multiturn(
                     "generationConfig": chat_gen_cfg,
                 }
             try:
-                to = 300 if need_slow else 120
+                if timeout and timeout > 0:
+                    to = int(timeout)
+                else:
+                    to = 300 if need_slow else 120
                 out = _http_post_json(url, payload, gemini_headers, timeout=to)
             except urllib.error.HTTPError as e:
                 try:
@@ -670,9 +672,10 @@ def _openai_compatible_chat(
     *,
     max_tokens: int | None = None,
     temperature: float | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     url = base_url.rstrip("/") + "/chat/completions"
-    to = _openai_compatible_timeout_sec(base_url)
+    to = int(timeout) if timeout and timeout > 0 else _openai_compatible_timeout_sec(base_url)
     payload: dict[str, Any] = {
         "model": model,
         "messages": [
@@ -707,6 +710,7 @@ def _openai_compatible_multiturn(
     *,
     attach_vision_current: bool,
     vision_paths: list[Path] | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     """OpenAI 兼容多轮；仅在 prior 各轮或当前轮标志为真时附 vision_paths。"""
     url = base_url.rstrip("/") + "/chat/completions"
@@ -733,7 +737,7 @@ def _openai_compatible_multiturn(
         "max_tokens": 8192,
     }
     headers = {"Authorization": f"Bearer {api_key}"}
-    to = _openai_compatible_timeout_sec(base_url)
+    to = int(timeout) if timeout and timeout > 0 else _openai_compatible_timeout_sec(base_url)
     if imgs0 and (attach_vision_current or any(t[2] for t in prior_turns)):
         to = max(to, 300)
     try:
@@ -1163,7 +1167,14 @@ def _anthropic_text_from_message_payload(out: dict) -> str:
     return "".join(parts).strip()
 
 
-def _anthropic_generate(api_key: str, model: str, system: str, user: str) -> tuple[str, str]:
+def _anthropic_generate(
+    api_key: str,
+    model: str,
+    system: str,
+    user: str,
+    *,
+    timeout: int | None = None,
+) -> tuple[str, str]:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": api_key,
@@ -1176,8 +1187,9 @@ def _anthropic_generate(api_key: str, model: str, system: str, user: str) -> tup
         "system": system,
         "messages": [{"role": "user", "content": user}],
     }
+    to = int(timeout) if timeout and timeout > 0 else 120
     try:
-        out = _http_post_json(url, payload, headers, timeout=120)
+        out = _http_post_json(url, payload, headers, timeout=to)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Anthropic HTTP {e.code}: {body[:1200]}") from e
@@ -1334,6 +1346,7 @@ def _anthropic_multiturn(
     *,
     attach_vision_current: bool,
     vision_paths: list[Path] | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
@@ -1356,11 +1369,14 @@ def _anthropic_multiturn(
         "system": system,
         "messages": messages,
     }
-    to = (
-        300
-        if imgs0 and (attach_vision_current or any(t[2] for t in prior_turns))
-        else 120
-    )
+    if timeout and timeout > 0:
+        to = int(timeout)
+    else:
+        to = (
+            300
+            if imgs0 and (attach_vision_current or any(t[2] for t in prior_turns))
+            else 120
+        )
     try:
         out = _http_post_json(url, payload, headers, timeout=to)
     except urllib.error.HTTPError as e:
@@ -1510,17 +1526,19 @@ def _dispatch_generate(
     *,
     max_tokens: int | None = None,
     temperature: float | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     """Single-shot generation. Returns (body_text, display_tag)."""
     key, base, model = _resolve_provider_credentials(provider)
     if provider == "gemini":
-        body, mtag = _gemini_generate(key, system, user)
+        body, mtag = _gemini_generate(key, system, user, timeout=timeout)
         return body, _provider_tag(provider, mtag)
     if provider == "anthropic":
-        body, mtag = _anthropic_generate(key, model, system, user)
+        body, mtag = _anthropic_generate(key, model, system, user, timeout=timeout)
         return body, _provider_tag(provider, mtag)
     body, mtag = _openai_compatible_chat(
-        key, base, model, system, user, max_tokens=max_tokens, temperature=temperature,
+        key, base, model, system, user,
+        max_tokens=max_tokens, temperature=temperature, timeout=timeout,
     )
     return body, _provider_tag(provider, mtag)
 
@@ -1533,10 +1551,15 @@ def _dispatch_multiturn(
     *,
     attach_vision_current: bool = False,
     vision_paths: list[Path] | None = None,
+    timeout: int | None = None,
 ) -> tuple[str, str]:
     """Multi-turn chat dispatch. Returns (body_text, display_tag)."""
     key, base, model = _resolve_provider_credentials(provider)
-    kw = dict(attach_vision_current=attach_vision_current, vision_paths=vision_paths or None)
+    kw = dict(
+        attach_vision_current=attach_vision_current,
+        vision_paths=vision_paths or None,
+        timeout=timeout,
+    )
     if provider == "gemini":
         body, mtag = _gemini_multiturn(key, system, prior, user_payload, **kw)
         return body, _provider_tag(provider, mtag)
@@ -1618,7 +1641,12 @@ def build_llm_deep_report(
     """在基础报告之上生成第二篇深度分析（写入独立文件）。"""
     body_trunc, was_trunc = _truncate(merged_text)
     user = _user_prompt_deep(body_trunc, was_trunc, basic_report)
-    body, tag = _dispatch_generate(provider, SYSTEM_DEEP_ZH, user)
+    try:
+        _, _base, _ = _resolve_provider_credentials(provider)
+    except Exception:
+        _base = ""
+    deep_to = _deep_http_timeout_sec(_base)
+    body, tag = _dispatch_generate(provider, SYSTEM_DEEP_ZH, user, timeout=deep_to)
 
     from datetime import datetime
 

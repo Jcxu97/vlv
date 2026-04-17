@@ -11,10 +11,27 @@ import sys
 import tkinter as tk
 import tkinter.font as tkfont
 
+from bilibili_vision.paths import PROJECT_ROOT
+
 # ── 产品显示名 ──────────────────────────────────────────
 APP_TITLE = "VLV · Video Listen View"
 APP_BRAND = "VLV"
 APP_TAGLINE = "Video Listen View · Local & Bilibili"
+
+# ── LLM 本地默认 / Prefs 路径 / UI 文案 ────────────────
+LLM_GUI_PREF_JSON = PROJECT_ROOT / "local_llm_prefs.json"
+# 与 Gemma serve 默认端口一致（原 8090 易被其它软件占用导致 POST 422）；可被 local_llm_prefs 覆盖。
+DEFAULT_LOCAL_OPENAI_BASE = "http://127.0.0.1:18090/v1"
+DEFAULT_LOCAL_OPENAI_MODEL_ID = "gemma-4-31b-4bit"
+# Ollama OpenAI 兼容接口仍须在请求里带 model；启动/探针时若未填则作占位（可改，需与本机 ollama pull 的模型名一致）。
+DEFAULT_OLLAMA_CHAT_MODEL_ID = "llama3.2"
+LOCAL_INF_FLOW_HELP = (
+    "多模态看图与「本地对话」共用同一套 OpenAI 兼容地址（/v1）。\n"
+    "顶部栏可显示本窗口启动的推理进程（点击可打开「推理服务」页）；换页后若状态不准请点「刷新状态」。\n"
+    "探针用的「服务 URL」「模型 ID」在左侧「本地对话」页上方填写（本区块不重复显示这两项）。\n"
+    "出现「探针进行中…」表示正在等本地模型返回，冷启动可能较慢；随后会显示「接口可响应」或错误原因。\n"
+    "「运行中」只表示子进程已启动，不等于权重已加载完。探针为单次请求，不会写入侧栏对话历史。"
+)
 
 # ── 间距网格 ────────────────────────────────────────────
 SPACING_XS = 4
@@ -24,63 +41,77 @@ SPACING_LG = 16
 SPACING_XL = 24
 
 # ── 卡片 / 面板样式 ────────────────────────────────────
-CARD_BORDER = "#e1e4e8"
-CARD_SHADOW = "#f0f2f5"
+# Codex 风格:近白底 + 冷灰层级 + 1px 细边 + 近黑字 + OpenAI 绿点缀。
+CARD_BORDER = "#e5e5e5"
+CARD_SHADOW = "#f0f0f0"
 
-SECTION_HEADER_FG = "#24292f"
+SECTION_HEADER_FG = "#0d0d0d"
 
-# ── 状态色 ──────────────────────────────────────────────
-STATUS_SUCCESS = "#1a7f37"
-STATUS_WARNING = "#9a6700"
-STATUS_ERROR = "#cf222e"
-STATUS_RUNNING = "#0969da"
+# ── 状态色 ────────────────────────────────────────────
+STATUS_SUCCESS = "#10a37f"       # OpenAI 绿
+STATUS_WARNING = "#d97706"       # 琥珀
+STATUS_ERROR = "#dc2626"         # 砖红
+STATUS_RUNNING = "#525252"       # 中性灰
 
-# ── 浅色工作台主题色 ────────────────────────────────────
-T_PAGE = "#f6f8fa"
-T_PANEL = "#ffffff"
+# ── Codex 工作台主题色 ────────────────────────────────
+T_PAGE = "#ffffff"               # 纯白页底
+T_PANEL = "#ffffff"              # 面板同页底,用边框分层
 T_BG = T_PAGE
 T_SURFACE = T_PANEL
-T_RAISED = "#f0f3f6"
-T_BORDER = "#e1e4e8"
-T_TEXT = "#1f2328"
-T_MUTED = "#656d76"
-T_ACCENT = "#2563eb"
-T_ACCENT_ACTIVE = "#1d4ed8"
-T_ENTRY = T_PANEL
-T_SELECT = "#dbeafe"
+T_RAISED = "#f7f7f8"             # 悬浮/次级底(ChatGPT 侧栏灰)
+T_BORDER = "#e5e5e5"             # 主边框
+T_TEXT = "#0d0d0d"               # 近黑正文
+T_MUTED = "#737373"              # 二级文字
+T_ACCENT = "#10a37f"             # OpenAI 绿(主操作)
+T_ACCENT_ACTIVE = "#0d8a6a"
+T_ENTRY = "#ffffff"
+T_SELECT = "#dbeafe"             # 淡蓝选中
 
-NAV_BG = T_PAGE
-NAV_SIDEBAR_BG = T_PAGE
-NAV_ACTIVE_BG = T_PANEL
-NAV_HOVER_BG = "#e8ecf2"
-NAV_DIVIDER = T_BORDER
+NAV_BG = "#f7f7f8"               # 侧栏浅灰
+NAV_SIDEBAR_BG = "#f7f7f8"
+NAV_ACTIVE_BG = "#ececec"
+NAV_HOVER_BG = "#ececec"
+NAV_DIVIDER = "#e5e5e5"
 
-WORKSPACE_TAB_IDLE = "#e8ecf2"
-WORKSPACE_TAB_SELECTED = T_PANEL
+WORKSPACE_TAB_IDLE = "#f7f7f8"
+WORKSPACE_TAB_SELECTED = "#ffffff"
 
-A_BG = T_PANEL
-A_USER = "#e8f0fe"
-A_CARD = "#f6f8fa"
-A_CARD_BORDER = T_BORDER
-A_META = T_MUTED
+A_BG = "#ffffff"
+A_USER = "#f4f4f4"               # 用户气泡:ChatGPT 淡灰
+A_CARD = "#ffffff"               # 助手气泡:白底 + 细边
+A_CARD_BORDER = "#e5e5e5"
+A_META = "#737373"
 A_ERR = "#fef2f2"
-A_COMPOSER = T_PANEL
-A_TEXT = T_TEXT
+A_COMPOSER = "#ffffff"
+A_TEXT = "#0d0d0d"
 
-COMPOSER_INPUT_BG = "#fafbfc"
-COMPOSER_TOOLBAR_BG = "#f3f5f9"
-COMPOSER_STOP_IDLE = "#b1bac4"
+COMPOSER_INPUT_BG = "#ffffff"
+COMPOSER_TOOLBAR_BG = "#f7f7f8"
+COMPOSER_STOP_IDLE = "#a3a3a3"
 
-SCROLL_TROUGH = "#e8ecf2"
+SCROLL_TROUGH = "#ffffff"
+SCROLL_THUMB = "#d4d4d4"
+SCROLL_THUMB_ACTIVE = "#a3a3a3"
 
-API_SECTION_MUTED = "#57606a"
+# 气泡 / 提示专用边框
+BUBBLE_USER_BORDER = "#e5e5e5"
+BUBBLE_ERROR_BORDER = "#fecaca"
+BUBBLE_ASSIST_HEAD = "#404040"
+STOP_BTN_HOVER_BG = "#fee2e2"
+REPORT_H1_FG = "#0d0d0d"
+REPORT_SUBHEAD_FG = "#404040"
+TOOLTIP_BG = "#0d0d0d"           # 深色气泡提示(ChatGPT 风)
+TOOLTIP_BORDER = "#0d0d0d"
+TOOLTIP_FG = "#ffffff"
 
-FLOW_SUB_INFO_BG = "#ecfdf5"
-FLOW_SUB_INFO_BORDER = "#6ee7b7"
+API_SECTION_MUTED = "#737373"
+
+FLOW_SUB_INFO_BG = "#ecfdf5"     # 子字幕:淡绿
+FLOW_SUB_INFO_BORDER = "#a7f3d0"
 FLOW_SUB_MUTED = "#047857"
-FLOW_FULL_INFO_BG = "#fff7ed"
-FLOW_FULL_INFO_BORDER = "#fdba74"
-FLOW_FULL_MUTED = "#9a3412"
+FLOW_FULL_INFO_BG = "#eff6ff"    # 多模态深:淡蓝
+FLOW_FULL_INFO_BORDER = "#bfdbfe"
+FLOW_FULL_MUTED = "#1d4ed8"
 
 # ── DPI 工具 ────────────────────────────────────────────
 _WIN_PMDPI_V2 = 2
