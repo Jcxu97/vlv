@@ -1,4 +1,4 @@
-# Add Tcl/Tk + tkinter to official embeddable Python (embed zip has no GUI stdlib).
+﻿# Add Tcl/Tk + tkinter to official embeddable Python (embed zip has no GUI stdlib).
 # Same CPython version as standalone build required (extension ABI).
 # Run from project root:
 #   powershell -ExecutionPolicy Bypass -File ".\add_tkinter_to_embed.ps1"

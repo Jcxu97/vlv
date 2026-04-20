@@ -1,4 +1,4 @@
-# Build a truly portable folder: official Python embeddable + pip + deps + Chromium in pw-browsers
+﻿# Build a truly portable folder: official Python embeddable + pip + deps + Chromium in pw-browsers
 # Run from project root:
 #   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1"
 # Clean rebuild:

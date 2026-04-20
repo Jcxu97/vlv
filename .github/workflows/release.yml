@@ -80,7 +80,10 @@ jobs:
         run: |
           python3.11 -m venv venv
           ./venv/bin/python -m pip install --upgrade pip
-          ./venv/bin/python -m pip install -r requirements.lock
+          # Use top-level requirements.txt; requirements.lock was generated on
+          # Windows x86_64 and pins versions that conflict on macOS arm64
+          # (e.g. pyee==12.1.1 vs playwright 1.49.0 → pyee==12.0.0).
+          ./venv/bin/python -m pip install -r requirements.txt
       - name: Stage bundle
         shell: bash
         run: |
