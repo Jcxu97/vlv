@@ -7,8 +7,10 @@
 #   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -SkipWhisperModel
 # NVIDIA GPU：安装 CUDA 12 cuBLAS/cuDNN wheel（~1.2GB，faster-whisper 用 GPU 时需要）：
 #   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -Gpu
+# Skip Playwright Chromium download (~400MB, first B站/YouTube fetch will install):
+#   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -SkipPlaywright
 
-param([switch]$Recreate, [switch]$SkipWhisperModel, [switch]$Gpu)
+param([switch]$Recreate, [switch]$SkipWhisperModel, [switch]$Gpu, [switch]$SkipPlaywright)
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
@@ -101,15 +103,19 @@ if ((-not $SkipWhisperModel) -and (Test-Path $srcDir)) {
     & $py -m bilibili_vision.download_whisper_models large-v3 small
 }
 
-New-Item -ItemType Directory -Force $PwBrowsers | Out-Null
-$env:PLAYWRIGHT_BROWSERS_PATH = $PwBrowsers
-Write-Host "playwright install chromium -> pw-browsers (large, needs stable network) ..."
-& $py -m playwright install chromium
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Warning "Chromium download failed (network). Double-click install_chromium.bat later, or run:"
-    Write-Host ('  $env:PLAYWRIGHT_BROWSERS_PATH = "' + $PwBrowsers + '"')
-    Write-Host ('  & "' + $py + '" -m playwright install chromium')
+if (-not $SkipPlaywright) {
+    New-Item -ItemType Directory -Force $PwBrowsers | Out-Null
+    $env:PLAYWRIGHT_BROWSERS_PATH = $PwBrowsers
+    Write-Host "playwright install chromium -> pw-browsers (large, needs stable network) ..."
+    & $py -m playwright install chromium
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Warning "Chromium download failed (network). Double-click install_chromium.bat later, or run:"
+        Write-Host ('  $env:PLAYWRIGHT_BROWSERS_PATH = "' + $PwBrowsers + '"')
+        Write-Host ('  & "' + $py + '" -m playwright install chromium')
+    }
+} else {
+    Write-Host "Skipping Chromium download (-SkipPlaywright). Recipient can run install_chromium.bat on first use."
 }
 
 Write-Host ""

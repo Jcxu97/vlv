@@ -23,21 +23,51 @@ jobs:
           name: dist-sdist
           path: dist/*
 
-  build-portable:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            archive: zip
-            name: vlv-windows
-          - os: macos-latest
-            archive: tar.gz
-            name: vlv-macos
-          - os: ubuntu-latest
-            archive: tar.gz
-            name: vlv-linux
-    runs-on: ${{ matrix.os }}
+  build-windows-portable:
+    # Runs the 准备便携环境.ps1 prepare script so the zip contains python_embed +
+    # site-packages + tkinter. Recipient double-clicks START.bat — no Python install needed.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare portable environment (embed python + deps, skip Whisper/Chromium)
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -SkipWhisperModel -SkipPlaywright
+      - name: Stage bundle (exclude dev/test files)
+        shell: pwsh
+        run: |
+          $stage = "dist\vlv-windows"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          $include = @(
+            "python_embed", "src", "run_gui.py",
+            "README.md", "LICENSE", "SECURITY.md",
+            "requirements.txt", "requirements.lock",
+            "START.bat", "启动.bat",
+            "install_chromium.bat", "DOWNLOAD_WHISPER.bat",
+            "INSTALL_TKINTER.bat", "add_tkinter_to_embed.ps1",
+            "准备便携环境.ps1", "local_api_keys.example.py",
+            "ffmpeg"
+          )
+          foreach ($item in $include) {
+            if (Test-Path $item) {
+              Copy-Item -Recurse -Force $item $stage
+            }
+          }
+      - name: Archive zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\vlv-windows\* -DestinationPath dist\vlv-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlv-windows
+          path: dist/vlv-windows.zip
+
+  build-macos-portable:
+    # Creates a relocatable venv under ./venv using the GitHub-runner's Python 3.11.
+    # start.sh auto-detects ./venv/bin/python on first run.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,34 +75,56 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install runtime deps (CPU baseline)
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.lock
-      - name: Stage portable bundle
+      - name: Create venv and install deps
         shell: bash
         run: |
-          mkdir -p dist/${{ matrix.name }}
-          cp -r src run_gui.py README.md requirements.txt requirements.lock dist/${{ matrix.name }}/ || true
-          if [ -f start.sh ]; then cp start.sh dist/${{ matrix.name }}/ ; fi
-          if [ -f START.bat ]; then cp START.bat dist/${{ matrix.name }}/ ; fi
-      - name: Archive (zip)
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          Compress-Archive -Path dist/${{ matrix.name }}/* -DestinationPath dist/${{ matrix.name }}.zip
-      - name: Archive (tar.gz)
-        if: matrix.archive == 'tar.gz'
+          python3.11 -m venv venv
+          ./venv/bin/python -m pip install --upgrade pip
+          ./venv/bin/python -m pip install -r requirements.lock
+      - name: Stage bundle
         shell: bash
         run: |
-          tar -C dist -czf dist/${{ matrix.name }}.tar.gz ${{ matrix.name }}
+          mkdir -p dist/vlv-macos
+          cp -r venv src run_gui.py README.md LICENSE SECURITY.md \
+                requirements.txt requirements.lock start.sh \
+                local_api_keys.example.py ffmpeg \
+                dist/vlv-macos/ 2>/dev/null || true
+          chmod +x dist/vlv-macos/start.sh
+      - name: Archive tar.gz
+        shell: bash
+        run: |
+          tar -C dist -czf dist/vlv-macos.tar.gz vlv-macos
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: dist/${{ matrix.name }}.*
+          name: vlv-macos
+          path: dist/vlv-macos.tar.gz
+
+  build-linux-sourcebundle:
+    # Lightweight source bundle for Linux: start.sh falls back to system python3.
+    # We do not ship a venv here — Linux distros vary too much on glibc/ssl ABI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage bundle
+        shell: bash
+        run: |
+          mkdir -p dist/vlv-linux
+          cp -r src run_gui.py README.md LICENSE SECURITY.md \
+                requirements.txt requirements.lock start.sh \
+                local_api_keys.example.py ffmpeg \
+                dist/vlv-linux/ 2>/dev/null || true
+          chmod +x dist/vlv-linux/start.sh
+      - name: Archive tar.gz
+        shell: bash
+        run: |
+          tar -C dist -czf dist/vlv-linux.tar.gz vlv-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlv-linux
+          path: dist/vlv-linux.tar.gz
 
   publish:
-    needs: [build-sdist, build-portable]
+    needs: [build-sdist, build-windows-portable, build-macos-portable, build-linux-sourcebundle]
     runs-on: ubuntu-latest
     permissions:
       contents: write
