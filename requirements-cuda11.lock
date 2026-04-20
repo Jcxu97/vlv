@@ -1,0 +1,11 @@
+# VLV GPU pins for CUDA 11.8 hosts.
+# Install with:
+#   pip install --extra-index-url https://download.pytorch.org/whl/cu118 -r requirements-cuda11.lock
+# Augments (does NOT replace) requirements.lock — install both.
+
+torch==2.5.1+cu118
+torchvision==0.20.1+cu118
+torchaudio==2.5.1+cu118
+transformers==4.47.1
+accelerate==1.2.1
+bitsandbytes==0.43.3

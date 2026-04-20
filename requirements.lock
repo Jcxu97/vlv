@@ -1,0 +1,29 @@
+# VLV stable runtime pins (CPU baseline).
+# Generated 2026-04-20 as the Phase 0 reproducibility baseline.
+# To regenerate:   pip install -r requirements.txt && pip freeze > requirements.lock
+# GPU variants live in requirements-cuda11.lock and requirements-cuda12.lock.
+
+yt-dlp==2025.2.19
+playwright==1.49.0
+faster-whisper==1.1.1
+static-ffmpeg==2.13
+Pillow==11.1.0
+
+# Transitive deps (pinned to what ships on CPython 3.11 / 2026-Q1):
+av==13.1.0
+certifi==2024.12.14
+charset-normalizer==3.4.1
+coloredlogs==15.0.1
+ctranslate2==4.5.0
+huggingface-hub==0.27.0
+humanfriendly==10.0
+idna==3.10
+numpy==2.0.2
+onnxruntime==1.20.1
+packaging==24.2
+protobuf==5.29.3
+pyee==12.1.1
+requests==2.32.3
+tokenizers==0.21.0
+tqdm==4.67.1
+urllib3==2.3.0

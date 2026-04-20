@@ -1,0 +1,11 @@
+# VLV GPU pins for CUDA 12.x hosts.
+# Install with:
+#   pip install --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements-cuda12.lock
+# Augments (does NOT replace) requirements.lock — install both.
+
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+torchaudio==2.5.1+cu121
+transformers==4.47.1
+accelerate==1.2.1
+bitsandbytes==0.45.0

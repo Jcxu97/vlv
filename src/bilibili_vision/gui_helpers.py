@@ -121,26 +121,60 @@ def _attach_tooltip(
     return _DelayedTooltip(widget, get_text, delay_ms=delay_ms, wraplength=wraplength)
 
 
-# 常见 B 站域名与短链（分享链接不一定是 www.bilibili.com）
+# Hints for every platform VLV currently routes. Kept explicit (rather than
+# reading from the platform registry) so the GUI can render platform badges
+# without importing yt-dlp at widget-construction time.
 URL_HINTS = (
     "bilibili.com",
     "bilibili.tv",
     "b23.tv",
     "bili2233.cn",
     "bilivideo.com",
+    "youtube.com",
+    "youtu.be",
+    "youtube-nocookie.com",
+    "douyin.com",
+    "iesdouyin.com",
+    "v.douyin.com",
 )
 
 
 def looks_like_bilibili_url(url: str) -> bool:
+    """Legacy name — retained for API compatibility. True iff the URL points at
+    a Bilibili domain or contains a BV id. Prefer `looks_like_supported_url`
+    for new call sites."""
+    u = url.strip().lower()
+    if not u.startswith(("http://", "https://")):
+        return False
+    bili_domains = ("bilibili.com", "bilibili.tv", "b23.tv", "bili2233.cn", "bilivideo.com")
+    return any(h in u for h in bili_domains) or bool(re.search(r"\bBV1[\w]{9}\b", url, re.I))
+
+
+def looks_like_supported_url(url: str) -> bool:
+    """True if the URL matches any platform adapter's hint list."""
     u = url.strip().lower()
     if not u.startswith(("http://", "https://")):
         return False
     return any(h in u for h in URL_HINTS) or bool(re.search(r"\bBV1[\w]{9}\b", url, re.I))
 
 
+def detect_platform_badge(url: str) -> str:
+    """Human-readable label rendered next to the URL input, e.g. 'Bilibili'."""
+    u = url.strip().lower()
+    if any(h in u for h in ("bilibili.com", "b23.tv", "bili2233.cn", "bilivideo.com", "bilibili.tv")):
+        return "Bilibili"
+    if any(h in u for h in ("youtube.com", "youtu.be", "youtube-nocookie.com")):
+        return "YouTube"
+    if any(h in u for h in ("douyin.com", "iesdouyin.com", "v.douyin.com")):
+        return "Douyin"
+    if u.startswith(("http://", "https://")):
+        return "Generic"
+    return ""
+
+
 def is_valid_task_source(text: str) -> bool:
     s = text.strip()
-    if looks_like_bilibili_url(s):
+    if looks_like_supported_url(s):
         return True
     p = Path(os.path.expanduser(s.strip('"')))
     try:

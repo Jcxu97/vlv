@@ -19,3 +19,35 @@ jobs:
           PYTHONPATH: src
         run: |
           python -m compileall -q src/bilibili_vision
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.12"]
+        exclude:
+          # Trim the matrix on non-Linux to keep CI fast; 3.11 is the primary target.
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov
+          # Install only the lightweight runtime deps needed for unit tests.
+          # Heavier deps (playwright, faster-whisper, torch) are mocked.
+          python -m pip install yt-dlp
+      - name: Run pytest (fast suite, skip slow/e2e/gpu)
+        env:
+          PYTHONPATH: src
+        run: |
+          pytest -m "not slow and not e2e and not gpu" --cov=src/bilibili_vision --cov-report=term-missing

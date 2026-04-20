@@ -1,0 +1,52 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: VLV 0.4.0\n"
+"Language: en_US\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Extract"
+msgstr "Extract"
+
+msgid "Analyze"
+msgstr "Analyze"
+
+msgid "Chat"
+msgstr "Chat"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Stop"
+msgstr "Stop"
+
+msgid "URL or local file"
+msgstr "URL or local file"
+
+msgid "Download subtitles"
+msgstr "Download subtitles"
+
+msgid "Download danmaku"
+msgstr "Download danmaku"
+
+msgid "Ready"
+msgstr "Ready"
+
+msgid "Running…"
+msgstr "Running…"
+
+msgid "Done"
+msgstr "Done"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Export diagnostics"
+msgstr "Export diagnostics"
+
+msgid "Language"
+msgstr "Language"

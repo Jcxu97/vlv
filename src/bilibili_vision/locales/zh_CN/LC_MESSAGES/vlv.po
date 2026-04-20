@@ -1,0 +1,52 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: VLV 0.4.0\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Extract"
+msgstr "提取"
+
+msgid "Analyze"
+msgstr "分析"
+
+msgid "Chat"
+msgstr "对话"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "URL or local file"
+msgstr "URL 或本地文件"
+
+msgid "Download subtitles"
+msgstr "下载字幕"
+
+msgid "Download danmaku"
+msgstr "下载弹幕"
+
+msgid "Ready"
+msgstr "就绪"
+
+msgid "Running…"
+msgstr "运行中…"
+
+msgid "Done"
+msgstr "完成"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Export diagnostics"
+msgstr "导出诊断包"
+
+msgid "Language"
+msgstr "语言"

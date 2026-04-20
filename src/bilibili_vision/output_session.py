@@ -33,6 +33,25 @@ def extract_bv(url: str) -> str | None:
     return m.group(0) if m else None
 
 
+_YT_ID_RE = re.compile(r"(?:v=|/shorts/|/embed/|youtu\.be/)([A-Za-z0-9_-]{11})")
+
+
+def extract_platform_id(url: str) -> tuple[str, str | None]:
+    """Return (platform_slug, id_or_None) from a URL without importing the full
+    registry — kept lightweight for use inside build_session_path where we
+    only need the pieces for a directory name."""
+    u = (url or "").lower()
+    bv = extract_bv(url)
+    if bv:
+        return ("bilibili", bv)
+    if any(d in u for d in ("youtube.com", "youtu.be")):
+        m = _YT_ID_RE.search(url)
+        return ("youtube", m.group(1) if m else None)
+    if "douyin.com" in u or "iesdouyin.com" in u:
+        return ("douyin", None)
+    return ("generic", None)
+
+
 def fetch_ytdlp_title(
     url: str, *, cookies: Path | None, no_playlist: bool
 ) -> str:
@@ -87,16 +106,19 @@ def build_session_path(
     now = datetime.now()
     day = now.strftime("%Y-%m-%d")
     tp = now.strftime("%H%M%S")
-    bv = None if is_local else extract_bv(source_for_name)
     if is_local and local_path:
         slug = sanitize_component(local_path.stem)
         name = f"{tp}_{slug}"
     else:
+        platform, pid = extract_platform_id(source_for_name)
         title = fetch_ytdlp_title(
             source_for_name, cookies=cookies, no_playlist=no_playlist
         )
-        slug = sanitize_component(title) if title else "bilibili"
-        name = f"{tp}_{slug}_{bv}" if bv else f"{tp}_{slug}"
+        slug = sanitize_component(title) if title else platform
+        suffix = f"_{platform}"
+        if pid:
+            suffix += f"_{pid}"
+        name = f"{tp}_{slug}{suffix}"
 
     base = PROJECT_ROOT / "out" / day / name
     cand = base
