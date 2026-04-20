@@ -43,7 +43,7 @@ jobs:
           $include = @(
             "python_embed", "src", "run_gui.py",
             "README.md", "LICENSE", "SECURITY.md",
-            "requirements.txt", "requirements.lock",
+            "requirements.txt", "requirements.lock", "requirements-online.txt",
             "START.bat", "启动.bat",
             "install_chromium.bat", "DOWNLOAD_WHISPER.bat",
             "INSTALL_TKINTER.bat", "add_tkinter_to_embed.ps1",
@@ -89,7 +89,7 @@ jobs:
         run: |
           mkdir -p dist/vlv-macos
           cp -r venv src run_gui.py README.md LICENSE SECURITY.md \
-                requirements.txt requirements.lock start.sh \
+                requirements.txt requirements.lock requirements-online.txt start.sh \
                 local_api_keys.example.py ffmpeg \
                 dist/vlv-macos/ 2>/dev/null || true
           chmod +x dist/vlv-macos/start.sh
@@ -113,7 +113,7 @@ jobs:
         run: |
           mkdir -p dist/vlv-linux
           cp -r src run_gui.py README.md LICENSE SECURITY.md \
-                requirements.txt requirements.lock start.sh \
+                requirements.txt requirements.lock requirements-online.txt start.sh \
                 local_api_keys.example.py ffmpeg \
                 dist/vlv-linux/ 2>/dev/null || true
           chmod +x dist/vlv-linux/start.sh
