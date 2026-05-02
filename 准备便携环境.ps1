@@ -9,8 +9,10 @@
 #   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -Gpu
 # Skip Playwright Chromium download (~400MB, first B站/YouTube fetch will install):
 #   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -SkipPlaywright
+# Online-only mode（最小安装，仅 yt-dlp + 云端 LLM，~50MB，无需 Whisper/Chromium）：
+#   powershell -ExecutionPolicy Bypass -File ".\准备便携环境.ps1" -OnlineOnly
 
-param([switch]$Recreate, [switch]$SkipWhisperModel, [switch]$Gpu, [switch]$SkipPlaywright)
+param([switch]$Recreate, [switch]$SkipWhisperModel, [switch]$Gpu, [switch]$SkipPlaywright, [switch]$OnlineOnly)
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
@@ -79,6 +81,32 @@ if (-not (Test-Path $pipMarker)) {
 
 Write-Host "pip install / upgrade ..."
 & $py -m pip install -q --upgrade pip
+
+if ($OnlineOnly) {
+    Write-Host ""
+    Write-Host "=== Online-Only Mode ==="
+    Write-Host "Installing minimal dependencies (yt-dlp + Pillow only) ..."
+    & $py -m pip install -r (Join-Path $Root "requirements-online.txt")
+
+    $addTk = Join-Path $Root "add_tkinter_to_embed.ps1"
+    if (Test-Path $addTk) {
+        Write-Host "Adding tkinter + Tcl/Tk for GUI ..."
+        & $addTk -ProjectRoot $Root
+    }
+
+    Write-Host ""
+    Write-Host "Done (Online-Only mode)."
+    Write-Host "Supports: YouTube / any site with public subtitles + cloud LLM analysis."
+    Write-Host "Does NOT include: Bilibili login, local Whisper ASR, local VLM."
+    Write-Host ""
+    Write-Host "To upgrade later:"
+    Write-Host "  Full mode:     .\准备便携环境.ps1           (adds Whisper + Chromium)"
+    Write-Host "  Bilibili only: pip install playwright && playwright install chromium"
+    Write-Host ""
+    Write-Host "Run START.bat or 启动.bat to launch."
+    exit 0
+}
+
 & $py -m pip install -r (Join-Path $Root "requirements.txt")
 
 $gpuReq = Join-Path $Root "requirements-gpu.txt"
@@ -119,5 +147,5 @@ if (-not $SkipPlaywright) {
 }
 
 Write-Host ""
-Write-Host "Done. Zip the WHOLE project folder including: python_embed, pw-browsers, src/, run_gui.py, *.bat"
+Write-Host "Done (Full mode). Zip the WHOLE project folder including: python_embed, pw-browsers, src/, run_gui.py, *.bat"
 Write-Host "Recipient: run START.bat or 启动.bat — no system Python needed."

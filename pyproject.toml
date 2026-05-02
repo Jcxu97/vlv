@@ -55,8 +55,8 @@ vlv-gui = "bilibili_vision.gui:main"
 vlv-diagnostics = "bilibili_vision.diagnostics:_cli"
 
 [project.urls]
-Homepage = "https://github.com/your-org/vlv"
-Issues = "https://github.com/your-org/vlv/issues"
+Homepage = "https://github.com/Jcxu97/vlv"
+Issues = "https://github.com/Jcxu97/vlv/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

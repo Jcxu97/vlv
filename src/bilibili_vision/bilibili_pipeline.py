@@ -142,7 +142,17 @@ def cmd_extract(args: argparse.Namespace) -> None:
         *extras,
         argv_source,
     ]
-    run(cmd)
+    try:
+        run(cmd)
+    except subprocess.CalledProcessError as exc:
+        transcript = session / "transcript_merged.txt"
+        if transcript.is_file() and transcript.stat().st_size > 0:
+            print(
+                f"⚠ 转写子进程异常退出 (code {exc.returncode:#x})，但输出已生成，继续…",
+                flush=True,
+            )
+        else:
+            raise
     if not getattr(args, "no_analyze", False):
         run([sys.executable, "-m", "bilibili_vision.analyze_transcript"])
 

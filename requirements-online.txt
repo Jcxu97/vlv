@@ -1,0 +1,6 @@
+# Minimal dependencies for online-only mode:
+# - Subtitles/danmaku from platforms with public captions (YouTube, etc.)
+# - Cloud LLM analysis (Gemini / OpenAI / Groq / Anthropic / xAI)
+# No local Whisper, no Playwright (Bilibili login), no ffmpeg needed.
+yt-dlp>=2025.1.0
+Pillow>=10.0.0
