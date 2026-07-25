@@ -11,9 +11,17 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D6)]()
 
-[**预览**](#预览) · [**功能**](#功能) · [**快速开始**](#快速开始) · [**命令行**](#命令行) · [**项目结构**](#项目结构) · [**升级指南**](#从-v03-升级到-v10) · [**开发**](#开发与贡献) · [**English**](#english)
+[**架构**](#架构) · [**预览**](#预览) · [**功能**](#功能) · [**快速开始**](#快速开始) · [**命令行**](#命令行) · [**项目结构**](#项目结构) · [**升级指南**](#从-v03-升级到-v10) · [**开发**](#开发与贡献) · [**English**](#english)
 
 </div>
+
+---
+
+## 架构
+
+<img src="docs/architecture-pipeline.png" alt="VLV 数据流：来源 → 抽取 → 字幕/弹幕/音轨 → 合并 → digest → 分析" width="620">
+
+虚线是可选支路：有官方字幕就跳过 Whisper，没带 `--vision` 就不下整片。中间那条 `merge_outputs()` 是无损存档，`digest.py` 是给大模型看的压缩读路径（见[命令行](#命令行)）。图源 [`docs/architecture-pipeline.drawio`](docs/architecture-pipeline.drawio) 可直接拖进 draw.io 编辑。
 
 ---
 
@@ -117,10 +125,21 @@ vlv extract https://www.bilibili.com/video/BVxxxx
 vlv extract https://youtu.be/dQw4w9WgXcQ
 vlv extract https://www.douyin.com/video/XXXX
 vlv extract --no-playlist --skip-video https://...
+vlv extract --asr https://...            # 强制本地 Whisper 转写
 vlv analyze out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/
+vlv digest  out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/   # 压成 LLM 简报
 vlv diagnostics                         # 导出诊断包
 vlv gui                                  # 等价于双击 START.bat
 ```
+
+`vlv digest` 解决的是喂给大模型时的体积问题。`transcript_merged.txt` 会把 yt-dlp 返回的每一条字幕轨（常见是 5 条机翻挨着 1 条中文）连同全部弹幕原样拼进去，30 分钟的视频就有约 9500 行。digest 自动挑一条最佳口播轨（`_local_asr` → `ai-zh` → 机翻，跳过 0 段的空轨），折叠成带时间戳的段落，再把弹幕墙换成频次表，产出 `transcript_digest.md`：
+
+| 文件 | 30 分钟视频实测 |
+|---|---|
+| `transcript_merged.txt` | 598 KB / 9501 行 |
+| `transcript_digest.md` | 33 KB / 108 行（**5.5%**，口播内容无损） |
+
+调节参数：`--per-para N`（每段合并多少句字幕，默认 12）、`--top-danmu N`（保留多少条高频弹幕，默认 30）。
 
 兼容旧路径（仍有效）：
 
@@ -153,9 +172,10 @@ PYTHONPATH=src python -m bilibili_vision.bilibili_pipeline --help
 │   ├── gpu_watchdog.py        # 显存预检 + 崩溃计数器
 │   ├── secret_store.py        # 加密 API Key
 │   ├── i18n.py                # gettext 封装
+│   ├── digest.py              # 合并文稿 → LLM 简报（压到 ~5%）
 │   ├── cli.py                 # `vlv` 命令
 │   └── (pipeline / gui / LLM / vision 等)
-├── tests/                     # 105+ pytest，CI 全绿
+├── tests/                     # 116 pytest，CI 全绿
 ├── docs/                      # architecture.md / contributing.md
 ├── scripts/compile_locales.py # 编译 .po → .mo
 ├── out/                       # 运行输出（.gitignore）

@@ -4,6 +4,15 @@ This document describes the v1.0-era module layout produced by the 12-week
 productisation roadmap. It is the canonical reference for adding a new
 platform, wiring a new LLM backend, or integrating a new local model.
 
+## Data flow
+
+![VLV pipeline](architecture-pipeline.png)
+
+Source: [`architecture-pipeline.drawio`](architecture-pipeline.drawio). Layout is
+generated, not hand-placed: the XML carries no coordinates, and
+`drawio --layout '[{"layout":"elkLayered",...}]'` positions everything at export
+time. Edit the nodes and edges, re-export, and the graph re-flows.
+
 ## Module map
 
 ```
@@ -14,7 +23,8 @@ src/bilibili_vision/
   i18n.py                # gettext wrapper, language switching
   secret_store.py        # encrypted API-key storage
   diagnostics.py         # "Help → Export diagnostics" zip builder
-  cli.py                 # `vlv extract/analyze/diagnostics/gui` entry point
+  cli.py                 # `vlv extract/analyze/digest/diagnostics/gui` entry point
+  digest.py              # merged transcript → LLM-ready digest (~5% the size)
   gpu_watchdog.py        # CUDA preflight + crash-counter for local inference
 
   tasks/
@@ -140,6 +150,28 @@ Strings wrapped with `_( )` from `bilibili_vision.i18n` go through gettext.
 Source catalogues: `src/bilibili_vision/locales/{zh_CN,en_US}/LC_MESSAGES/vlv.po`.
 Run `python scripts/compile_locales.py` after editing to regenerate `.mo`
 files. `set_language(code)` switches catalogues at runtime.
+
+### 7. Transcript digest
+
+`merge_outputs()` deliberately concatenates *everything* yt-dlp produced, so
+`transcript_merged.txt` is the lossless archive: every subtitle track (including
+the five machine translations Bilibili ships next to `ai-zh`) plus every danmaku
+line. That makes it a poor prompt — a 30-minute video is ~9500 lines, mostly
+redundant.
+
+`digest.py` is the lossy read path built for LLM consumption:
+
+- `pick_narration_srt()` ranks tracks by `_TRACK_RANK` (`_local_asr` → `ai-zh` →
+  `.zh*` → English) and **skips zero-cue files**. Whisper emits a valid but empty
+  SRT when it detects no speech (music videos), so filename ranking alone would
+  discard every usable subtitle.
+- `fold_segments()` groups cues into paragraphs stamped with the first cue's
+  timestamp, so timestamps survive at paragraph granularity.
+- `danmaku_table()` replaces the danmaku wall with a frequency table, which is
+  what actually carries audience sentiment.
+
+Result: `transcript_digest.md` at roughly 5% the byte size with the narration
+intact. The merged file stays on disk as the source of truth.
 
 ## How to add a new platform (example: Vimeo)
 
