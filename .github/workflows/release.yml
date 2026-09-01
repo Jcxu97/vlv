@@ -9,7 +9,7 @@ jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # setuptools_scm needs the full history
       - uses: actions/setup-python@v5
@@ -28,7 +28,7 @@ jobs:
     # site-packages + tkinter. Recipient double-clicks START.bat — no Python install needed.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Prepare portable environment (embed python + deps, skip Whisper/Chromium)
@@ -69,7 +69,7 @@ jobs:
     # start.sh auto-detects ./venv/bin/python on first run.
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -104,7 +104,7 @@ jobs:
     # We do not ship a venv here — Linux distros vary too much on glibc/ssl ABI.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Stage bundle
         shell: bash
         run: |
