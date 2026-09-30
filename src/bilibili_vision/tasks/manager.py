@@ -245,6 +245,8 @@ def _run_subprocess_body(
 
     for r in readers:
         r.join(timeout=1.0)
+    # on_cancel kills the process from the caller's thread, so poll() can win the race.
+    token.check_raise()
     return int(proc.returncode or 0)
 
 
