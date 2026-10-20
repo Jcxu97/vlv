@@ -124,7 +124,8 @@ def run_ytdlp(
         cmd.extend(
             [
                 "-f",
-                "bv*+ba/bestvideo+bestaudio/best/b",
+                # 视频只用来抽帧，720p 够看清字幕和界面，下载量比 1080p/4K 小很多
+                "bv*[height<=720]+ba/b[height<=720]/bv*+ba/b",
                 "--merge-output-format",
                 "mp4",
             ]

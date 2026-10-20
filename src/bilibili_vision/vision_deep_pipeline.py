@@ -560,6 +560,7 @@ def run_from_config(cfg: dict[str, Any], log: Callable[[str], None] | None = Non
 
     from .frame_vision_gemma import should_drop_frame_caption
 
+    frames_only = not ocr_on and not vlm_active
     for idx, fr in enumerate(to_proc):
         if n_frames:
             pct = int(100 * idx / max(n_frames, 1))
@@ -622,7 +623,8 @@ def run_from_config(cfg: dict[str, Any], log: Callable[[str], None] | None = Non
                     )
                     vlm_active = False
                     vlm_aborted = True
-        if entry.get("ocr") or entry.get("vlm"):
+        # OCR 和 VLM 都关时只交帧路径和时间，由调用方（如 Claude 直接看图）自己读
+        if entry.get("ocr") or entry.get("vlm") or frames_only:
             timeline.append(entry)
 
     if n_frames:

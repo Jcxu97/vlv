@@ -537,6 +537,9 @@ def _create_whisper_model(model_ref: str, device_pref: str):
         return m
 
 
+_ZH_PUNCT_PROMPT = "以下是普通话的句子，使用简体中文，带标点符号。"
+
+
 def transcribe_audio_file(
     audio_path: Path,
     srt_out: Path,
@@ -567,10 +570,17 @@ def transcribe_audio_file(
             flush=True,
         )
 
+    from faster_whisper import decode_audio
+
     model = _create_whisper_model(model_ref, device_pref)
+    audio = decode_audio(str(audio_path))
+    lang, _, _ = model.detect_language(audio)
+    # 不给提示时 large-v3 中文输出几乎不带标点；提示只对中文加，免得把外语带偏
     segments, info = model.transcribe(
-        str(audio_path),
+        audio,
+        language=lang,
         vad_filter=True,
+        initial_prompt=_ZH_PUNCT_PROMPT if lang == "zh" else None,
     )
     print(
         f"转写中…（检测到语言 {getattr(info, 'language', '?')}）",
