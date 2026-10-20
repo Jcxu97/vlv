@@ -88,6 +88,8 @@ def cmd_extract(args: argparse.Namespace) -> None:
     extras: list[str] = []
     if args.no_playlist:
         extras.append("--no-playlist")
+    if getattr(args, "allow_any_url", False):
+        extras.append("--allow-any-url")
     if getattr(args, "asr_if_no_subs", False):
         extras.append("--asr-if-no-subs")
     if getattr(args, "asr_force", False):
@@ -181,6 +183,11 @@ def main() -> None:
         help="https B 站链接，或本机音视频路径（如 .mp3 .mp4）",
     )
     p_ex.add_argument("--no-playlist", action="store_true", help="只抓当前 P")
+    p_ex.add_argument(
+        "--allow-any-url",
+        action="store_true",
+        help="允许非 B 站链接（YouTube、抖音等 yt-dlp 支持的网站）",
+    )
     p_ex.add_argument(
         "--relogin",
         action="store_true",
