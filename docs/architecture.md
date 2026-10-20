@@ -23,8 +23,9 @@ src/bilibili_vision/
   i18n.py                # gettext wrapper, language switching
   secret_store.py        # encrypted API-key storage
   diagnostics.py         # "Help → Export diagnostics" zip builder
-  cli.py                 # `vlv extract/analyze/digest/diagnostics/gui` entry point
+  cli.py                 # `vlv extract/analyze/digest/shots/diagnostics/gui` entry point
   digest.py              # merged transcript → LLM-ready digest (~5% the size)
+  videoshot.py           # B站 preview sprite sheets → timed frames, no video download
   gpu_watchdog.py        # CUDA preflight + crash-counter for local inference
 
   tasks/

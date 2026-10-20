@@ -3,6 +3,7 @@
     vlv extract <url>           — run the extract pipeline
     vlv analyze <session_dir>   — re-run analysis on an existing session
     vlv digest <session_dir>    — compress a session into an LLM-ready digest
+    vlv shots <url> <session_dir> — grab B站 preview frames, no video download
     vlv diagnostics             — emit a diagnostics zip
     vlv gui                     — launch the GUI
 """
@@ -62,6 +63,12 @@ def _cmd_digest(args: argparse.Namespace) -> int:
     return _run_module("digest", argv)
 
 
+def _cmd_shots(args: argparse.Namespace) -> int:
+    from .videoshot import main as shots_main
+
+    return shots_main([args.url, "--out", str(args.session_dir), "--max", str(args.max)])
+
+
 def _cmd_diagnostics(_: argparse.Namespace) -> int:
     from .diagnostics import build_diagnostic_zip
 
@@ -106,6 +113,14 @@ def main(argv: list[str] | None = None) -> int:
     p_digest.add_argument("-o", "--output", type=Path, default=None)
     p_digest.add_argument("--per-para", type=int, default=12)
     p_digest.set_defaults(func=_cmd_digest)
+
+    p_shots = sub.add_parser(
+        "shots", help="Grab B站 preview frames without downloading the video"
+    )
+    p_shots.add_argument("url")
+    p_shots.add_argument("session_dir", type=Path)
+    p_shots.add_argument("--max", type=int, default=40, help="最多取几帧（0 表示全取）")
+    p_shots.set_defaults(func=_cmd_shots)
 
     p_diag = sub.add_parser("diagnostics", help="Export a diagnostics zip")
     p_diag.set_defaults(func=_cmd_diagnostics)

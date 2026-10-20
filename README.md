@@ -128,6 +128,7 @@ vlv extract --no-playlist --skip-video https://...
 vlv extract --asr https://...            # 强制本地 Whisper 转写
 vlv analyze out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/
 vlv digest  out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/   # 压成 LLM 简报
+vlv shots   https://www.bilibili.com/video/BVxxxx out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/  # B 站预览帧，不下视频
 vlv diagnostics                         # 导出诊断包
 vlv gui                                  # 等价于双击 START.bat
 ```
@@ -140,6 +141,10 @@ vlv gui                                  # 等价于双击 START.bat
 | `transcript_digest.md` | 33 KB / 108 行（**5.5%**，口播内容无损） |
 
 调节参数：`--per-para N`（每段合并多少句字幕，默认 12）、`--top-danmu N`（保留多少条高频弹幕，默认 30）。
+
+`vlv shots` 用 B 站进度条的预览拼图取帧，不下载视频，一两秒就能拿到全片画面。每帧 480×270，间隔由 B 站决定（一般 5 到 10 秒），在全片均匀取 `--max` 张（默认 40，`0` 表示全取）。帧存在会话目录的 `videoshot/` 下，按时间命名（`01m44s.jpg`），时间表在 `videoshot.json`。字幕和大字看得清，小字看不清。要看细节就用 `--vision` 下载视频（封顶 720p）走 `vision_deep_pipeline` 抽帧。
+
+本地 Whisper 转写中文时会带一句提示，输出带标点的简体中文；其他语言不加提示。
 
 兼容旧路径（仍有效）：
 
