@@ -45,7 +45,7 @@ jobs:
           python -m pip install pytest pytest-cov
           # Install only the lightweight runtime deps needed for unit tests.
           # Heavier deps (playwright, faster-whisper, torch) are mocked.
-          python -m pip install yt-dlp
+          python -m pip install yt-dlp pillow requests
       - name: Run pytest (fast suite, skip slow/e2e/gpu)
         env:
           PYTHONPATH: src
