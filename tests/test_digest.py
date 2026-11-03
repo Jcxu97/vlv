@@ -101,3 +101,14 @@ def test_build_digest_without_danmaku(tmp_path: Path) -> None:
     text = build_digest(tmp_path)
     assert "第一句第二句" in text
     assert "高频弹幕" not in text
+
+
+def test_danmaku_peaks_reports_dense_bins_in_time_order(tmp_path: Path) -> None:
+    from bilibili_vision.digest import danmaku_peaks
+
+    ds = ['<d p="5,1,25,0">开头</d>']
+    ds += ['<d p="95,1,25,0">高能</d>'] * 6
+    ds += [f'<d p="{t},1,25,0">路过</d>' for t in (40, 130, 160, 200)]
+    (tmp_path / "x.danmaku.xml").write_text("<i>" + "".join(ds) + "</i>", encoding="utf-8")
+    peaks = danmaku_peaks(tmp_path, bin_sec=30)
+    assert peaks == [(90, 6, [("高能", 6)])]

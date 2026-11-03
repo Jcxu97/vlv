@@ -52,12 +52,22 @@ def pick(
     acc: float = 0.25,
     gap_samples: int = 40,
     max_frames: int = 80,
+    merge_runs: bool = True,
 ) -> list[tuple[int, str]]:
-    """返回 [(样本下标, 来源)]，来源是 first / cut / acc / gap。"""
+    """返回 [(样本下标, 来源)]，来源是 first / cut / acc / gap。
+
+    merge_runs 把连续的高分样本当成一次过渡，只留结束后那一帧。采样间隔
+    很长时（B站 预览帧 5 到 10 秒一张）连续高分是几个不同画面，要关掉。
+    """
     keep: list[tuple[int, str]] = [(0, "first")] if scores else []
     since = 0.0
     i = 1
     while i < len(scores):
+        if scores[i] >= cut and not merge_runs:
+            keep.append((i, "cut"))
+            since = 0.0
+            i += 1
+            continue
         if scores[i] >= cut:
             j = i
             while j + 1 < len(scores) and scores[j + 1] >= cut:

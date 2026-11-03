@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_shots.add_argument("url")
     p_shots.add_argument("session_dir", type=Path)
-    p_shots.add_argument("--max", type=int, default=40, help="最多取几帧（0 表示全取）")
+    p_shots.add_argument("--max", type=int, default=80, help="最多取几帧（0 表示不限）")
     p_shots.set_defaults(func=_cmd_shots)
 
     p_frames = sub.add_parser(

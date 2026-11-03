@@ -71,6 +71,38 @@ def danmaku_table(session: Path, top: int = 30) -> tuple[int, list[tuple[str, in
     return len(texts), counter.most_common(top)
 
 
+def _fmt_sec(sec: float) -> str:
+    s = int(sec)
+    return f"{s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}"
+
+
+def danmaku_peaks(
+    session: Path, bin_sec: int = 30, top: int = 6
+) -> list[tuple[int, int, list[tuple[str, int]]]]:
+    """弹幕最密的几个时间段：[(段起点秒, 条数, 段内高频弹幕)]，按时间排序。
+
+    p 属性第一个字段是弹幕在视频里出现的秒数。只报条数超过平均值两倍的段。
+    """
+    bins: dict[int, list[str]] = {}
+    for xml in session.glob("*.danmaku.xml"):
+        raw = xml.read_text(encoding="utf-8", errors="ignore")
+        for attrs, text in _DANMU_RE.findall(raw):
+            text = text.strip()
+            try:
+                t = float(attrs.split(",", 1)[0])
+            except ValueError:
+                continue
+            if text:
+                bins.setdefault(int(t // bin_sec) * bin_sec, []).append(text)
+    if not bins:
+        return []
+    span = max(bins) // bin_sec + 1
+    mean = sum(len(v) for v in bins.values()) / span
+    hot = [b for b in bins if len(bins[b]) >= 2 * mean]
+    hot = sorted(hot, key=lambda b: -len(bins[b]))[:top]
+    return [(b, len(bins[b]), Counter(bins[b]).most_common(3)) for b in sorted(hot)]
+
+
 def build_digest(session: Path, per_para: int = 12, top_danmu: int = 30) -> str:
     lines = [f"# {session.name}", ""]
 
@@ -96,6 +128,13 @@ def build_digest(session: Path, per_para: int = 12, top_danmu: int = 30) -> str:
     if top:
         lines += ["", f"## 高频弹幕 top{len(top)}", ""]
         lines += [f"{count:4d}  {text}" for text, count in top]
+
+    peaks = danmaku_peaks(session)
+    if peaks:
+        lines += ["", "## 弹幕高峰（每 30 秒一段，条数超过平均两倍）", ""]
+        for start, n, common in peaks:
+            sample = " / ".join(f"{t}×{c}" if c > 1 else t for t, c in common)
+            lines.append(f"[{_fmt_sec(start)}] {n} 条  {sample}")
 
     return "\n".join(lines) + "\n"
 
