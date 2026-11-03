@@ -129,11 +129,12 @@ vlv extract --asr https://...            # 强制本地 Whisper 转写
 vlv analyze out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/
 vlv digest  out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/   # 压成 LLM 简报
 vlv shots   https://www.bilibili.com/video/BVxxxx out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/  # B 站预览帧，不下视频
+vlv frames  out/.../BVxxxx_pNA.mp4 out/2026-04-20/HHMMSS_Title_bilibili_BVxxxx/  # 按画面变化挑帧并拼图
 vlv diagnostics                         # 导出诊断包
 vlv gui                                  # 等价于双击 START.bat
 ```
 
-`vlv digest` 解决的是喂给大模型时的体积问题。`transcript_merged.txt` 会把 yt-dlp 返回的每一条字幕轨（常见是 5 条机翻挨着 1 条中文）连同全部弹幕原样拼进去，30 分钟的视频就有约 9500 行。digest 自动挑一条最佳口播轨（`_local_asr` → `ai-zh` → 机翻，跳过 0 段的空轨），折叠成带时间戳的段落，再把弹幕墙换成频次表，产出 `transcript_digest.md`：
+`vlv digest` 解决的是喂给大模型时的体积问题。`transcript_merged.txt` 会把 yt-dlp 返回的每一条字幕轨（常见是 5 条机翻挨着 1 条中文）连同全部弹幕原样拼进去，30 分钟的视频就有约 9500 行。digest 自动挑一条最佳口播轨（`_local_asr` → `ai-zh` → 机翻，跳过 0 段的空轨），折叠成带时间戳的段落，再把弹幕墙换成频次表和弹幕高峰表（每 30 秒一段，列出条数超过平均两倍的时间段和段内高频弹幕），产出 `transcript_digest.md`：
 
 | 文件 | 30 分钟视频实测 |
 |---|---|
@@ -142,9 +143,11 @@ vlv gui                                  # 等价于双击 START.bat
 
 调节参数：`--per-para N`（每段合并多少句字幕，默认 12）、`--top-danmu N`（保留多少条高频弹幕，默认 30）。
 
-`vlv shots` 用 B 站进度条的预览拼图取帧，不下载视频，一两秒就能拿到全片画面。每帧 480×270，间隔由 B 站决定（一般 5 到 10 秒），在全片均匀取 `--max` 张（默认 40，`0` 表示全取）。帧存在会话目录的 `videoshot/` 下，按时间命名（`01m44s.jpg`），时间表在 `videoshot.json`。字幕和大字看得清，小字看不清。要看细节就用 `--vision` 下载视频（封顶 720p）走 `vision_deep_pipeline` 抽帧。
+`vlv shots` 用 B 站进度条的预览拼图取帧，不下载视频，几秒就能拿到全片画面。每帧 480×270，间隔由 B 站决定（一般 5 到 10 秒）。和上一帧相比没有变化的帧会被丢掉，最多留 `--max` 张（默认 80，`0` 表示不限），超出时优先留画面切换的帧。帧存在会话目录的 `videoshot/` 下，按时间命名（`01m44s.jpg`），另外每 9 帧拼成一张 3×3 的 `sheet_001.jpg`，每格标着时间，时间表在 `videoshot.json`。字幕和大字看得清，小字看不清。
 
-本地 Whisper 转写中文时会带一句提示，输出带标点的简体中文；其他语言不加提示。
+`vlv frames` 用在下载了视频之后（`--vision`，封顶 720p）。它先把视频降到每秒 2 帧，再给相邻两帧的变化打分。降采样后淡入淡出会变成一次跳变，所以幻灯片翻页也能抓到。画面切换后、缓慢变化累积够量后、或者 20 秒没出帧时各留一帧，最多 80 帧，每 4 帧拼成一张 2×2 的图。结果在会话目录的 `frames_change/` 下，`sheet_*.jpg` 是拼图，`frames/` 是原尺寸单帧，`frames.json` 是时间表。一个 8 分钟的幻灯片视频实测 12 秒跑完，挑出 84 个不同画面，原来每 5 秒一帧再均匀留 40 帧的做法只覆盖到其中 37 个。思路来自 [dsh-see-now](https://github.com/SAOS-3624/dsh-see-now)。
+
+本地 Whisper 转写中文时会带一句提示，输出带标点的简体中文；其他语言不加提示。有 GPU 时走 faster-whisper 的批量模式，再按句末标点把每段拆成一句一条字幕。RTX 5090 上一段 31 分钟的音频从 198 秒降到 27 秒，文字和逐段模式基本一致。没有 GPU 时仍走逐段模式。
 
 兼容旧路径（仍有效）：
 
