@@ -4,6 +4,7 @@
     vlv analyze <session_dir>   — re-run analysis on an existing session
     vlv digest <session_dir>    — compress a session into an LLM-ready digest
     vlv shots <url> <session_dir> — grab B站 preview frames, no video download
+    vlv frames <video> <session_dir> — pick frames by screen change, tile into sheets
     vlv diagnostics             — emit a diagnostics zip
     vlv gui                     — launch the GUI
 """
@@ -61,6 +62,12 @@ def _cmd_digest(args: argparse.Namespace) -> int:
     if args.output:
         argv += ["-o", str(args.output)]
     return _run_module("digest", argv)
+
+
+def _cmd_frames(args: argparse.Namespace) -> int:
+    from .changeframes import main as frames_main
+
+    return frames_main([str(args.video), str(args.session_dir), "--max", str(args.max), "--grid", args.grid])
 
 
 def _cmd_shots(args: argparse.Namespace) -> int:
@@ -121,6 +128,15 @@ def main(argv: list[str] | None = None) -> int:
     p_shots.add_argument("session_dir", type=Path)
     p_shots.add_argument("--max", type=int, default=40, help="最多取几帧（0 表示全取）")
     p_shots.set_defaults(func=_cmd_shots)
+
+    p_frames = sub.add_parser(
+        "frames", help="Pick frames by screen change and tile them into sheets"
+    )
+    p_frames.add_argument("video", type=Path)
+    p_frames.add_argument("session_dir", type=Path)
+    p_frames.add_argument("--max", type=int, default=80, help="最多几帧（0 表示不限）")
+    p_frames.add_argument("--grid", default="2x2", help="每张拼图几列几行")
+    p_frames.set_defaults(func=_cmd_frames)
 
     p_diag = sub.add_parser("diagnostics", help="Export a diagnostics zip")
     p_diag.set_defaults(func=_cmd_diagnostics)
