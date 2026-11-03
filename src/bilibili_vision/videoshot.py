@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .changeframes import make_sheets, pick
 from .paths import PROJECT_ROOT
 
 _API = "https://api.bilibili.com/x/player"
@@ -57,6 +58,15 @@ def _fmt_t(sec: int) -> str:
     return f"{sec // 60:02d}m{sec % 60:02d}s"
 
 
+def _change_scores(tiles: list) -> list[float]:
+    """相邻两格的平均灰度差（0 到 1），口径接近 ffmpeg 的 scene 分。"""
+    small = [im.convert("L").resize((64, 36)).tobytes() for im in tiles]
+    out = [0.0]
+    for a, b in zip(small, small[1:]):
+        out.append(sum(abs(x - y) for x, y in zip(a, b)) / (255 * len(a)))
+    return out
+
+
 def fetch_videoshots(
     url: str,
     out_dir: Path,
@@ -94,37 +104,48 @@ def fetch_videoshots(
     cols, rows = int(d["img_x_len"]), int(d["img_y_len"])
     w, h = int(d["img_x_size"]), int(d["img_y_size"])
 
-    times = index[1:]
-    k_all = list(range(len(times)))
-    if max_frames > 0 and len(k_all) > max_frames:
-        k_all = sorted({round(i * (len(times) - 1) / (max_frames - 1)) for i in range(max_frames)})
-
     shot_dir = out_dir / "videoshot"
     shot_dir.mkdir(parents=True, exist_ok=True)
     for old in shot_dir.glob("*.jpg"):
         old.unlink()
 
     per_sheet = cols * rows
-    cache: dict[int, Image.Image] = {}
-    timeline: list[dict] = []
+    tiles: list[tuple[int, Image.Image]] = []
     seen: set[int] = set()
-    for k in k_all:
-        t = int(times[k])
-        if t in seen:
-            continue
-        seen.add(t)
-        si, pos = divmod(k, per_sheet)
-        if si >= len(sheets):
+    for si, src in enumerate(sheets):
+        if si * per_sheet >= len(index) - 1:
             break
-        if si not in cache:
-            src = sheets[si]
-            r = s.get(("https:" + src) if src.startswith("//") else src, timeout=30)
-            r.raise_for_status()
-            cache[si] = Image.open(io.BytesIO(r.content)).convert("RGB")
-        x, y = (pos % cols) * w, (pos // cols) * h
+        r = s.get(("https:" + src) if src.startswith("//") else src, timeout=30)
+        r.raise_for_status()
+        sprite = Image.open(io.BytesIO(r.content)).convert("RGB")
+        for pos in range(per_sheet):
+            k = si * per_sheet + pos
+            if k + 1 >= len(index):
+                break
+            t = int(index[k + 1])
+            if t in seen:
+                continue
+            seen.add(t)
+            x, y = (pos % cols) * w, (pos // cols) * h
+            tiles.append((t, sprite.crop((x, y, x + w, y + h))))
+
+    step = (tiles[-1][0] - tiles[0][0]) / max(1, len(tiles) - 1) if tiles else 1
+    # 预览帧 5 到 10 秒一张，换一句字幕就有 0.015 分，阈值只用来丢掉完全没变的格
+    chosen = pick(
+        _change_scores([im for _, im in tiles]),
+        cut=0.01,
+        gap_samples=max(1, round(20 / max(step, 1))),
+        max_frames=max_frames,
+        merge_runs=False,
+    )
+    timeline: list[dict] = []
+    for k, kind in chosen:
+        t, im = tiles[k]
         p = shot_dir / f"{_fmt_t(t)}.jpg"
-        cache[si].crop((x, y, x + w, y + h)).save(p, quality=90)
-        timeline.append({"t": t, "path": str(p.resolve())})
+        im.save(p, quality=90)
+        timeline.append({"t": t, "kind": kind, "path": str(p.resolve())})
+    if timeline:
+        make_sheets(timeline, shot_dir, 3, 3, w)
 
     (out_dir / "videoshot.json").write_text(
         json.dumps({"bvid": bvid, "page": page, "timeline": timeline}, ensure_ascii=False, indent=2) + "\n",
@@ -137,14 +158,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="用 B 站预览拼图取帧，不下载视频")
     ap.add_argument("url", help="B 站视频链接或 BV 号（?p=N 选分 P）")
     ap.add_argument("--out", type=Path, default=PROJECT_ROOT / "out", help="会话目录（vlv extract 的输出目录）")
-    ap.add_argument("--max", type=int, default=40, help="最多取几帧，在全片均匀取（0 表示全取）")
+    ap.add_argument("--max", type=int, default=80, help="最多取几帧，超出时优先留画面切换（0 表示不限）")
     args = ap.parse_args(argv)
     try:
         tl = fetch_videoshots(args.url, args.out, max_frames=args.max)
     except (RuntimeError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 1
-    print(f"取到 {len(tl)} 帧：{args.out / 'videoshot'}")
+    print(f"取到 {len(tl)} 帧，拼图 sheet_*.jpg：{args.out / 'videoshot'}")
     return 0
 
 
