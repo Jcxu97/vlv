@@ -3,7 +3,7 @@
 先降到每秒 2 帧再算 ffmpeg 的 scene 分。降采样后淡入淡出会变成一次跳变，
 30fps 下它被摊到十几帧里，每帧分数都太低。挑帧有三种来源：
 cut 是分数过阈值的切换（取变化结束后的那一帧），acc 是持续小变化累积够量，
-gap 是太久没出帧的兜底。思路来自 SAOS-3624/dsh-see-now。
+gap 是太久没出帧的兜底。
 """
 from __future__ import annotations
 
