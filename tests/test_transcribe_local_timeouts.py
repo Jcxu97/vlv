@@ -71,3 +71,13 @@ def test_extract_audio_from_video_raises_on_timeout(monkeypatch, tmp_path: Path)
     with pytest.raises(RuntimeError) as excinfo:
         transcribe_local.extract_audio_from_video(vid, tmp_path, str(tmp_path))
     assert "clip.mp4" in str(excinfo.value)
+
+
+def test_split_sentences_breaks_batched_segment_at_sentence_end():
+    from types import SimpleNamespace as N
+
+    from bilibili_vision.transcribe_local import split_sentences
+
+    words = [N(start=0.0, end=0.5, word="你好。"), N(start=0.6, end=1.0, word="再"), N(start=1.0, end=1.4, word="见！")]
+    out = split_sentences([N(start=0.0, end=1.4, text="你好。再见！", words=words)])
+    assert [(c.start, c.end, c.text) for c in out] == [(0.0, 0.5, "你好。"), (0.6, 1.4, "再见！")]

@@ -359,6 +359,35 @@ def _srt_timestamp(sec: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+_SENT_END = ("。", "？", "！", "?", "!", "…", ".")
+
+
+def split_sentences(segments, max_chars: int = 60) -> list:
+    """把批量模式约 30 秒一段的输出按词级时间戳拆成一句一条。
+
+    句末标点处断开；一句太长时在逗号处也断开。没有词级时间戳的段原样保留。
+    """
+    from types import SimpleNamespace
+
+    out = []
+    for seg in segments:
+        words = getattr(seg, "words", None) or []
+        if not words:
+            out.append(seg)
+            continue
+        cur: list = []
+        for w in words:
+            cur.append(w)
+            text = "".join(x.word for x in cur).strip()
+            tail = w.word.strip()
+            if tail.endswith(_SENT_END) or (len(text) >= max_chars and tail.endswith((",", "，", "、"))):
+                out.append(SimpleNamespace(start=cur[0].start, end=w.end, text=text))
+                cur = []
+        if cur:
+            out.append(SimpleNamespace(start=cur[0].start, end=cur[-1].end, text="".join(x.word for x in cur).strip()))
+    return out
+
+
 def segments_to_srt(segments, path: Path) -> None:
     lines: list[str] = []
     idx = 0
@@ -570,23 +599,30 @@ def transcribe_audio_file(
             flush=True,
         )
 
-    from faster_whisper import decode_audio
+    from faster_whisper import BatchedInferencePipeline, decode_audio
 
     model = _create_whisper_model(model_ref, device_pref)
     audio = decode_audio(str(audio_path))
     lang, _, _ = model.detect_language(audio)
     # 不给提示时 large-v3 中文输出几乎不带标点；提示只对中文加，免得把外语带偏
-    segments, info = model.transcribe(
-        audio,
+    kwargs = dict(
         language=lang,
         vad_filter=True,
         initial_prompt=_ZH_PUNCT_PROMPT if lang == "zh" else None,
     )
+    on_gpu = getattr(getattr(model, "model", None), "device", "") == "cuda"
+    if on_gpu:
+        # 批量模式在 5090 上 31 分钟音频 198s → 27s，文字和逐段模式基本一致
+        segments, info = BatchedInferencePipeline(model).transcribe(
+            audio, batch_size=16, word_timestamps=True, **kwargs
+        )
+    else:
+        segments, info = model.transcribe(audio, **kwargs)
     print(
         f"转写中…（检测到语言 {getattr(info, 'language', '?')}）",
         flush=True,
     )
-    segs = list(segments)
+    segs = split_sentences(list(segments)) if on_gpu else list(segments)
     segments_to_srt(segs, srt_out)
     print(f"已写入：{srt_out}（共 {len(segs)} 段）", flush=True)
 
